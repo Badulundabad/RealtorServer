@@ -10,7 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using RealtyModel;
+using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {

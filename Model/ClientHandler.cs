@@ -8,7 +8,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using RealtyModel;
+using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {

@@ -1,6 +1,6 @@
-﻿using System;
-using System.Data.Entity;
-using RealtyModel.RealtorObject.DerivedClasses;
+﻿using System.Data.Entity;
+using RealtyModel.Model;
+using RealtyModel.Model.Derived;
 
 namespace RealtorServer.Model
 {
@@ -9,9 +9,11 @@ namespace RealtorServer.Model
         public RealtyContext() : base("RealtyDBConnection")
         {
             Flats.Load();
-            Houses.Load();
+            //Houses.Load();
+            Customers.Load();
         }
-        public DbSet<Flat> Flats { get; set; }
+        public DbSet<DBFlat> Flats { get; set; }
         public DbSet<House> Houses { get; set; }
+        public DbSet<Customer> Customers { get; set; }
     }
 }

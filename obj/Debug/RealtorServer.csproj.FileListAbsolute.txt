@@ -79,4 +79,5 @@ C:\Users\Public\Projects\RealtorServer\bin\Debug\RealtyModel.pdb
 C:\Users\Public\Projects\RealtorServer\bin\Debug\RealtyModel.dll.config
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtyModel.dll
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtyModel.pdb
-C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtyModel.dll.config
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\ImageTranscoding.dll
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\ImageTranscoding.pdb

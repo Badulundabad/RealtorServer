@@ -267,3 +267,5 @@
 04:01:21 06:55 Identity server Json is work
 04:01:21 06:55 Identity server was stopped
 04:01:21 06:55 Server was stopped
+19:01:21 07:08 Server is running
+19:01:21 07:08 Identity server is working

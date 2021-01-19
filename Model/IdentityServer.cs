@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
-using RealtyModel;
+using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
@@ -15,7 +15,7 @@ namespace RealtorServer.Model
         Boolean isRunning;
         Dispatcher uiDispatcher;
         public Queue<Operation> IdentityQueue { get; private set; }
-        public ObservableCollection<User> Users { get; private set; }
+        public ObservableCollection<Credential> Credentials { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
         public ObservableCollection<Operation> IdentityResults { get; private set; }
 
@@ -23,7 +23,7 @@ namespace RealtorServer.Model
         {
             uiDispatcher = dispatcher;
             IdentityContext dataBase = new IdentityContext();
-            Users = dataBase.Users.Local;
+            Credentials = dataBase.Credentials.Local;
             Log = new ObservableCollection<LogMessage>();
             IdentityQueue = new Queue<Operation>();
             IdentityResults = new ObservableCollection<Operation>();
@@ -42,21 +42,21 @@ namespace RealtorServer.Model
                         while (IdentityQueue.Count > 0)
                         {
                             Operation nextIdentity = IdentityQueue.Dequeue();
-                            User identityData = JsonSerializer.Deserialize<User>(nextIdentity.Data);
+                            Credential identityData = JsonSerializer.Deserialize<Credential>(nextIdentity.Data);
                             if (nextIdentity.OperationType == OperationType.Login)
                             {
-                                if (Users.Where(user => user.Name == identityData.Name && user.Password == identityData.Password).Count() == 1)
+                                if (Credentials.Where(user => user.Name == identityData.Name && user.Password == identityData.Password).Count() == 1)
                                     nextIdentity.IsSuccessfully = true;
                                 else nextIdentity.IsSuccessfully = false;
                             }
                             else if (nextIdentity.OperationType == OperationType.Register)
                             {
-                                if (Users.Where(user => user.Name == identityData.Name && user.Password == identityData.Password).Count() == 0)
+                                if (Credentials.Where(user => user.Name == identityData.Name && user.Password == identityData.Password).Count() == 0)
                                 {
                                     nextIdentity.IsSuccessfully = true;
                                     uiDispatcher.BeginInvoke(new Action(() =>
                                     {
-                                        Users.Add(identityData);
+                                        Credentials.Add(identityData);
                                     }));
                                 }
                                 else nextIdentity.IsSuccessfully = false;

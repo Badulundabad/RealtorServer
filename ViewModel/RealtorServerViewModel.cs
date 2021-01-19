@@ -2,16 +2,19 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
-using System.ComponentModel;
+using System.Drawing;
 using System.IO;
-using System.Windows.Input;
-using System.Windows.Threading;
-using RealtyModel;
-using RealtyModel.RealtorObject;
-using RealtyModel.RealtorObject.DerivedClasses;
-using RealtorServer.Model;
+using System.Linq;
 using System.Text.Json;
+using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using RealtyModel.Model;
+using RealtyModel.Model.Derived;
+using RealtyModel.Service;
+using RealtorServer.Model;
+using ImageTranscoding;
+using System.Drawing.Imaging;
 
 namespace RealtorServer.ViewModel
 {
@@ -21,6 +24,7 @@ namespace RealtorServer.ViewModel
         public ICommand StopCommand { get; private set; }
         public Server CurrentServer { get; private set; }
         public RealtyContext Realty { get; private set; }
+        public AlbumContext AlbumContext { get; private set; }
         public IdentityServer IdentityServer { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
 
@@ -29,8 +33,6 @@ namespace RealtorServer.ViewModel
             Log = new ObservableCollection<LogMessage>();
             IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher);
             CurrentServer = new Server(Dispatcher.CurrentDispatcher);
-            Realty = new RealtyContext();
-            //Test();
 
             IdentityServer.Log.CollectionChanged += (sender, e) => UpdateLog(e.NewItems);
             IdentityServer.IdentityResults.CollectionChanged += (sender, e) => HandleIdentityResult(e.NewItems);
@@ -47,77 +49,14 @@ namespace RealtorServer.ViewModel
                 Dispatcher.CurrentDispatcher.Invoke(IdentityServer.Stop);
                 Dispatcher.CurrentDispatcher.Invoke(CurrentServer.Stop);
             });
-        }
 
-        public void Test()
-        {
-            Flat flat = new Flat()
-            {
-                Info = new FlatInfo()
-                {
-                    Balcony = "asd",
-                    Bath = "asd",
-                    Bathroom = "asd",
-                    Ceiling = 2,
-                    Condition = "asd",
-                    Convenience = "asd",
-                    Description = "qwe",
-                    Floor = "asd",
-                    Fund = "asd",
-                    General = 2,
-                    HasChute = false,
-                    HasElevator = false,
-                    HasGarage = false,
-                    HasImprovedLayout = false,
-                    HasRenovation = false,
-                    Heating = "qwe",
-                    IsCorner = false,
-                    IsPrivatised = false,
-                    Kitchen = 2,
-                    Kvl = 2,
-                    Living = 2.1,
-                    Loggia = "asd",
-                    Material = "asd",
-                    RoomCount = 2,
-                    Rooms = "asd",
-                    Type = "asd",
-                    TypeOfRooms = "asd",
-                    Water = "asd",
-                    Windows = "asd",
-                    Year = 1990
-                },
-                Worker = new Worker()
-                {
-                    Agency = "asd",
-                    RegDate = DateTime.Now,
-                    Registrant = "asd",
-                    RespDate = DateTime.Now,
-                    Responsible = "asd"
-                },
-                Location=new Location()
-                {
-                    Banner=false,
-                    City="asd",
-                    District="asd",
-                    Exchange=false,
-                    FlatNumber=2,
-                    HouseNumber=2,
-                    Street="asd"
-                },
-                Cost=new Cost()
-                {
-                    Area=2,
-                    VAT=false,
-                    Mortgage=false,
-                    Multiplier=2,
-                    PseudoPrice=2,
-                    RealPrice=2
-                }
-            };
-            Realty.Flats.Local.Add(flat);
-            Realty.SaveChanges();
-        }
+            Realty = new RealtyContext();
+            AlbumContext = new AlbumContext();
 
+
+
+            Test();
+        }
 
         private void HandleIdentityResult(IList results)
         {
@@ -153,17 +92,12 @@ namespace RealtorServer.ViewModel
                                 }
                             case OperationType.Change:
                                 {
-                                    UpdateObject(operation);
+                                    ChangeObject(operation);
                                     break;
                                 }
                             case OperationType.Remove:
                                 {
                                     RemoveObject(operation);
-                                    break;
-                                }
-                            case OperationType.Update:
-                                {
-                                    Get(operation);
                                     break;
                                 }
                         }
@@ -179,49 +113,98 @@ namespace RealtorServer.ViewModel
                 UpdateLog("(HandleOperations)threw an exception: " + ex.Message);
             }
         }
+
         private void AddObject(Operation operation)
         {
-            switch (operation.ObjectType)
+            try
             {
-                case ObjectType.Flat:
-                    {
-                        Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
-                        if (FindDuplicate(ObjectType.Flat, newFlat.Location))
+                switch (operation.ObjectType)
+                {
+                    case ObjectType.Flat:
                         {
-                            operation.IsSuccessfully = false;
-                            CurrentServer.OperationResults.Add(operation);
-                        }
-                        else
-                        {
-                            //добавить в бд
-                            Realty.Flats.Local.Add(newFlat);
-                            //отправить подтверждение
-                            operation.IsSuccessfully = true;
-                            CurrentServer.OperationResults.Add(operation);
-                            //отправить всем клиентам обновление
-                            Operation op = new Operation()
+                            Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
+                            if (FindDuplicate(ObjectType.Flat, newFlat.Location))
                             {
-                                IpAddress="broadcast",
-                                OperationType=OperationType.Update,
-                                ObjectType=operation.ObjectType,
-                                Data=real
+                                operation.IsSuccessfully = false;
+                                CurrentServer.OperationResults.Add(operation);
                             }
+                            else
+                            {
+                                DBFlat newDBFlat = DBFlat.GetDBFlat(newFlat);
+                                newDBFlat.CredentialId = newFlat.Credential.Id;
+                                if (newFlat.Customer.Id == -1)
+                                {
+                                    newFlat.Customer.Id = AddCustomer(newFlat.Customer);
+                                }
+                                newFlat.Album.Id = AddAlbum(newFlat.Album);
+
+                                newDBFlat.CustomerId = newFlat.Customer.Id;
+                                newDBFlat.AlbumId = newFlat.Album.Id;
+
+                                if (newDBFlat.CustomerId != -1 && newDBFlat.AlbumId != -1)
+                                {
+                                    //добавить в бд
+                                    Realty.Flats.Local.Add(newDBFlat);
+                                    //отправить подтверждение
+                                    operation.IsSuccessfully = true;
+                                    operation.Data = "";
+                                    CurrentServer.OperationResults.Add(operation);
+                                    //отправить всем клиентам обновление
+                                    DBFlat dbFlat = Realty.Flats.Local.First<DBFlat>(fl => fl.Location == newDBFlat.Location);
+                                    newFlat.Id = dbFlat.Id;
+                                    Operation updateOperation = new Operation()
+                                    {
+                                        IpAddress = "broadcast",
+                                        OperationType = OperationType.Update,
+                                        ObjectType = operation.ObjectType,
+                                        Data = JsonSerializer.Serialize<Flat>(newFlat)
+                                    };
+                                    CurrentServer.OperationResults.Add(updateOperation);
+                                }
+                                else
+                                {
+                                    //отправить отказ
+                                    operation.IsSuccessfully = false;
+                                    operation.Data = "";
+                                    CurrentServer.OperationResults.Add(operation);
+                                }
+                            }
+                            break;
                         }
-                        break;
-                    }
-                case ObjectType.House:
-                    {
-                        break;
-                    }
+                    case ObjectType.House:
+                        {
+                            break;
+                        }
+                }
+            }
+            catch(Exception ex)
+            {
+                UpdateLog("(AddObject) " + ex.Message);
             }
         }
-
-        private Boolean FindDuplicate(ObjectType objectType, Location location)
+        private Int32 AddAlbum(Album album)
+        {
+            AlbumContext.Albums.Local.Add(album);
+            Album newAlbum = AlbumContext.Albums.Local.First(alb =>
+            alb.Location == album.Location &&
+            alb.Preview == album.Preview &&
+            alb.PhotoList == album.PhotoList);
+            return newAlbum.Id;
+        }
+        private Int32 AddCustomer(Customer customer)
+        {
+            Realty.Customers.Local.Add(customer);
+            Customer newCust = Realty.Customers.Local.First<Customer>(cus =>
+            cus.Name == customer.Name &&
+            cus.PhoneNumbers == customer.PhoneNumbers);
+            return newCust.Id;
+        }
+        private Boolean FindDuplicate(ObjectType objectType, Location location = null, Customer customer = null, Album album = null)
         {
             Boolean result = true;
             if (objectType == ObjectType.Flat)
             {
-                if (Realty.Flats.Local.Where<Flat>(flat =>
+                if (Realty.Flats.Local.Where<DBFlat>(flat =>
                     flat.Location.City == location.City &&
                     flat.Location.Street == location.Street &&
                     flat.Location.HouseNumber == location.HouseNumber &&
@@ -239,14 +222,31 @@ namespace RealtorServer.ViewModel
                    ).Count() == 0)
                     result = false;
             }
+            else if (objectType == ObjectType.Customer)
+            {
+                if (Realty.Customers.Local.Where<Customer>(cus =>
+                     cus.Name == customer.Name &&
+                     cus.PhoneNumbers == customer.PhoneNumbers
+                   ).Count() == 0)
+                    result = false;
+            }
+            else if (objectType == ObjectType.Album)
+            {
+                if (AlbumContext.Albums.Local.Where<Album>(alb =>
+                    alb.Location == album.Location &&
+                    alb.Preview == album.Preview &&
+                    alb.PhotoList == album.PhotoList
+                   ).Count() == 0)
+                    result = false;
+            }
             return result;
         }
-        private Int32 GetId(ObjectType objectType, Location location)
+        private Int32 GetId(ObjectType objectType, Location location = null, Customer customer = null, Album album = null)
         {
             Int32 id = -1;
             if (objectType == ObjectType.Flat)
             {
-                ObservableCollection<Flat> flats = (ObservableCollection<Flat>)Realty.Flats.Local.Where<Flat>(flat =>
+                ObservableCollection<DBFlat> flats = (ObservableCollection<DBFlat>)Realty.Flats.Local.Where<DBFlat>(flat =>
                     flat.Location.City == location.City &&
                     flat.Location.Street == location.Street &&
                     flat.Location.HouseNumber == location.HouseNumber &&
@@ -264,14 +264,35 @@ namespace RealtorServer.ViewModel
                      house.Location.Street == location.Street &&
                      house.Location.HouseNumber == location.HouseNumber &&
                      house.Location.FlatNumber == location.FlatNumber);
-                if(houses!=null && houses.Count != 0)
+                if (houses != null && houses.Count != 0)
                 {
                     id = houses[0].Id;
                 }
             }
+            else if (objectType == ObjectType.Customer)
+            {
+                ObservableCollection<Customer> customers = (ObservableCollection<Customer>)Realty.Customers.Local.Where<Customer>(cus =>
+                    cus.Name == customer.Name &&
+                    cus.PhoneNumbers == customer.PhoneNumbers);
+                if (customers != null && customers.Count != 0)
+                {
+                    id = customers[0].Id;
+                }
+            }
+            else if (objectType == ObjectType.Album)
+            {
+                ObservableCollection<Album> albums = (ObservableCollection<Album>)AlbumContext.Albums.Local.Where<Album>(alb =>
+                alb.Location == album.Location &&
+                alb.Preview == album.Preview &&
+                alb.PhotoList == album.PhotoList);
+                if (albums != null && albums.Count != 0)
+                {
+                    id = albums[0].Id;
+                }
+            }
             return id;
         }
-        private void UpdateObject(Operation operation)
+        private void ChangeObject(Operation operation)
         {
             throw new NotImplementedException();
         }
@@ -309,6 +330,29 @@ namespace RealtorServer.ViewModel
             {
                 Log.Add(logMessage);
             }));
+        }
+
+        private void Test()
+        {
+            Flat flat;
+            for(Int32 i = 0; i <10; i++)
+            {
+                flat = new Flat()
+                {
+                    Cost = new Cost()
+                    {
+
+                    }
+                    Album = new Album()
+                    {
+                        
+                    }
+                }
+                Operation operation = new Operation()
+                {
+                    Data =
+                }
+            }
         }
     }
 }

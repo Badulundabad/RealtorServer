@@ -1,5 +1,5 @@
 ﻿using System.Data.Entity;
-using RealtyModel;
+using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
@@ -7,9 +7,9 @@ namespace RealtorServer.Model
     {
         public IdentityContext() : base("UserDBConnection")
         {
-            Users.Load();
-            Users.Local.CollectionChanged += (sender, e) => { this.SaveChanges(); };
+            Credentials.Load();
+            Credentials.Local.CollectionChanged += (sender, e) => { this.SaveChanges(); };
         }
-        public DbSet<User> Users { get; set; }
+        public DbSet<Credential> Credentials { get; set; }
     }
 }
