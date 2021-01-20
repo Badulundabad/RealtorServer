@@ -33,7 +33,7 @@ namespace RealtorServer.Model
         public List<Operation> OperationResults { get; set; }
         public ObservableCollection<Operation> IncomingOperations { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
-        public ObservableCollection<ClientHandler> OnlineClients { get; private set; }
+        public ObservableCollection<RemoteClient> OnlineClients { get; private set; }
         #endregion
 
         public Server(Dispatcher dispatcher)
@@ -41,7 +41,7 @@ namespace RealtorServer.Model
             uiDispatcher = dispatcher;
             OperationResults = new List<Operation>();
             Log = new ObservableCollection<LogMessage>();
-            OnlineClients = new ObservableCollection<ClientHandler>();
+            OnlineClients = new ObservableCollection<RemoteClient>();
             IncomingOperations = new ObservableCollection<Operation>();
         }
 
@@ -65,15 +65,15 @@ namespace RealtorServer.Model
                             if (listeningSocket.Poll(100000, SelectMode.SelectRead))
                             {
                                 clientSocket = listeningSocket.Accept();
-                                ClientHandler client = new ClientHandler(clientSocket, this);
+                                RemoteClient client = new RemoteClient(clientSocket, this);
                                 client.PropertyChanged += (sender, e) =>
                                 {
                                     if (e.PropertyName == "IsConnected")
                                     {
-                                        if (!((ClientHandler)sender).IsConnected)
+                                        if (!((RemoteClient)sender).IsConnected)
                                             uiDispatcher.BeginInvoke(new Action(() =>
                                             {
-                                                OnlineClients.Remove((ClientHandler)sender);
+                                                OnlineClients.Remove((RemoteClient)sender);
                                             }));
                                     }
                                 };
@@ -101,7 +101,7 @@ namespace RealtorServer.Model
             {
                 IsRunning = false;
                 if (OnlineClients.Count > 0)
-                    foreach (ClientHandler client in OnlineClients)
+                    foreach (RemoteClient client in OnlineClients)
                     {
                         client.Disconnect();
                     }

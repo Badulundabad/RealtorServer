@@ -25,13 +25,13 @@ namespace RealtorServer.ViewModel
         public Server CurrentServer { get; private set; }
         public RealtyContext Realty { get; private set; }
         public AlbumContext AlbumContext { get; private set; }
-        public IdentityServer IdentityServer { get; private set; }
+        public CredentialServer IdentityServer { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
-
+       
         public RealtorServerViewModel()
         {
             Log = new ObservableCollection<LogMessage>();
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher);
+            IdentityServer = new CredentialServer(Dispatcher.CurrentDispatcher);
             CurrentServer = new Server(Dispatcher.CurrentDispatcher);
 
             IdentityServer.Log.CollectionChanged += (sender, e) => UpdateLog(e.NewItems);
@@ -55,7 +55,7 @@ namespace RealtorServer.ViewModel
 
 
 
-            Test();
+            //Test();
         }
 
         private void HandleIdentityResult(IList results)
@@ -87,7 +87,7 @@ namespace RealtorServer.ViewModel
                                 }
                             case OperationType.Add:
                                 {
-                                    AddObject(operation);
+                                    //AddObject(operation);
                                     break;
                                 }
                             case OperationType.Change:
@@ -113,7 +113,7 @@ namespace RealtorServer.ViewModel
                 UpdateLog("(HandleOperations)threw an exception: " + ex.Message);
             }
         }
-
+     
         private void AddObject(Operation operation)
         {
             try
@@ -199,6 +199,7 @@ namespace RealtorServer.ViewModel
             cus.PhoneNumbers == customer.PhoneNumbers);
             return newCust.Id;
         }
+        
         private Boolean FindDuplicate(ObjectType objectType, Location location = null, Customer customer = null, Album album = null)
         {
             Boolean result = true;
@@ -292,6 +293,7 @@ namespace RealtorServer.ViewModel
             }
             return id;
         }
+        
         private void ChangeObject(Operation operation)
         {
             throw new NotImplementedException();
@@ -331,7 +333,7 @@ namespace RealtorServer.ViewModel
                 Log.Add(logMessage);
             }));
         }
-
+        /*
         private void Test()
         {
             Flat flat;
@@ -353,6 +355,6 @@ namespace RealtorServer.ViewModel
                     Data =
                 }
             }
-        }
+        }*/
     }
 }

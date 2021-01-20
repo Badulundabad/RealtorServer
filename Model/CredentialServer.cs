@@ -10,7 +10,7 @@ using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class IdentityServer
+    public class CredentialServer
     {
         Boolean isRunning;
         Dispatcher uiDispatcher;
@@ -19,10 +19,10 @@ namespace RealtorServer.Model
         public ObservableCollection<LogMessage> Log { get; private set; }
         public ObservableCollection<Operation> IdentityResults { get; private set; }
 
-        public IdentityServer(Dispatcher dispatcher)
+        public CredentialServer(Dispatcher dispatcher)
         {
             uiDispatcher = dispatcher;
-            IdentityContext dataBase = new IdentityContext();
+            CredentialContext dataBase = new CredentialContext();
             Credentials = dataBase.Credentials.Local;
             Log = new ObservableCollection<LogMessage>();
             IdentityQueue = new Queue<Operation>();

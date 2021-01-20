@@ -106,10 +106,11 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Model\ClientHandler.cs" />
-    <Compile Include="Model\IdentityContext.cs" />
-    <Compile Include="Model\IdentityServer.cs" />
+    <Compile Include="Model\RemoteClient.cs" />
+    <Compile Include="Model\CredentialContext.cs" />
+    <Compile Include="Model\CredentialServer.cs" />
     <Compile Include="Model\AlbumContext.cs" />
+    <Compile Include="Model\PrimaryFilter.cs" />
     <Compile Include="Model\RealtyContext.cs" />
     <Compile Include="Model\Server.cs" />
     <Compile Include="ViewModel\RealtorServerViewModel.cs" />

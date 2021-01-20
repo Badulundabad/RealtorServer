@@ -3,9 +3,9 @@ using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class IdentityContext : DbContext
+    public class CredentialContext : DbContext
     {
-        public IdentityContext() : base("UserDBConnection")
+        public CredentialContext() : base("UserDBConnection")
         {
             Credentials.Load();
             Credentials.Local.CollectionChanged += (sender, e) => { this.SaveChanges(); };

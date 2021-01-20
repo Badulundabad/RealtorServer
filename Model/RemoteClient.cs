@@ -12,7 +12,7 @@ using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class ClientHandler : INotifyPropertyChanged
+    public class RemoteClient : INotifyPropertyChanged
     {
         #region Fields
         String name;
@@ -52,7 +52,7 @@ namespace RealtorServer.Model
         }
         #endregion
 
-        public ClientHandler(Socket socket, Server server)
+        public RemoteClient(Socket socket, Server server)
         {
             this.workSocket = socket;
             this.server = server;
