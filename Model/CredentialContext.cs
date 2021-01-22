@@ -8,7 +8,6 @@ namespace RealtorServer.Model
         public CredentialContext() : base("UserDBConnection")
         {
             Credentials.Load();
-            Credentials.Local.CollectionChanged += (sender, e) => { this.SaveChanges(); };
         }
         public DbSet<Credential> Credentials { get; set; }
     }

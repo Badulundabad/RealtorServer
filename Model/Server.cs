@@ -35,7 +35,7 @@ namespace RealtorServer.Model
         public ObservableCollection<LogMessage> Log { get; private set; }
         public ObservableCollection<RemoteClient> OnlineClients { get; private set; }
         #endregion
-
+        //The Server should add the address from message came
         public Server(Dispatcher dispatcher)
         {
             uiDispatcher = dispatcher;

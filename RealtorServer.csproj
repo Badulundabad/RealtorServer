@@ -106,6 +106,7 @@
       <DependentUpon>App.xaml</DependentUpon>
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="Model\NewIdentityServer.cs" />
     <Compile Include="Model\RemoteClient.cs" />
     <Compile Include="Model\CredentialContext.cs" />
     <Compile Include="Model\CredentialServer.cs" />
