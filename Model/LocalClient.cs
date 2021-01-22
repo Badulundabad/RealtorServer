@@ -12,14 +12,14 @@ using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class RemoteClient : INotifyPropertyChanged
+    public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
         String name;
         String ipAddress;
         Boolean isConnected;
         Socket workSocket;
-        Server server;
+        LocalServer server;
         public event PropertyChangedEventHandler PropertyChanged;
         #endregion
         #region Properties
@@ -52,7 +52,7 @@ namespace RealtorServer.Model
         }
         #endregion
 
-        public RemoteClient(Socket socket, Server server)
+        public LocalClient(Socket socket, LocalServer server)
         {
             this.workSocket = socket;
             this.server = server;
@@ -137,9 +137,8 @@ namespace RealtorServer.Model
                                     server.OperationResults.Remove(results[i]);
                                     server.UpdateLog("Server", $"sent a message to {IpAddress}");
                                 }
-                                catch(Exception ex)
+                                catch
                                 {
-
                                 }
                             }
                         }

@@ -10,32 +10,20 @@ using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class NewIdentityServer
+    public class NewIdentityServer : Server
     {
-        private Boolean isRunning = false;
-        private Dispatcher dispatcher = null;
-        private ObservableCollection<LogMessage> log;
-        private Queue<Operation> identityQueue;
-        private Queue<Operation> identityResults;
-        private CredentialContext credentialContext;
-        private Dictionary<String, String> loggedInClients;
+        private CredentialContext credentialContext = new CredentialContext();
+        private Dictionary<String, String> loggedInClients = new Dictionary<String, String>();
 
-        public delegate void ClientIdentification();
-        public event ClientIdentification ClientLoggedIn;
-        public event ClientIdentification ClientLoggedOut;
-
-        public NewIdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> inputQueue, Queue<Operation> outputQueue)
+        public NewIdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> input, Queue<Operation> output) : base(dispatcher, log, input, output)
         {
             this.log = log;
             this.dispatcher = dispatcher;
-            identityQueue = inputQueue;
-            identityResults = outputQueue;
-            credentialContext = new CredentialContext();
-            loggedInClients = new Dictionary<String, String>();
+            incomingQueue = input;
+            outcomingQueue = output;
         }
 
-
-        public async Task RunAsync()
+        public override async Task RunAsync()
         {
             await Task.Run(() =>
             {
@@ -44,9 +32,9 @@ namespace RealtorServer.Model
                     isRunning = true;
                     while (isRunning)
                     {
-                        while (identityQueue.Count > 0)
+                        while (incomingQueue.Count > 0)
                         {
-                            Handle(identityQueue.Dequeue());
+                            Handle(incomingQueue.Dequeue());
                         }
                     }
                 }
@@ -54,18 +42,18 @@ namespace RealtorServer.Model
                 {
                     UpdateLog("(RunAsync) " + ex.Message);
                 }
+                finally
+                {
+                    UpdateLog(" has stopped");
+                }
             });
         }
-
-
         public Boolean CheckAccess(String ipAddress)
         {
             if (loggedInClients.ContainsKey(ipAddress))
                 return true;
             else return false;
         }
-
-
         private void Handle(Operation operation)
         {
             try
@@ -80,7 +68,7 @@ namespace RealtorServer.Model
                     operation.IsSuccessfully = true;
                     UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
                 }
-                else if(operation.OperationType == OperationType.Logout && CheckAccess(operation.IpAddress))
+                else if (operation.OperationType == OperationType.Logout && CheckAccess(operation.IpAddress))
                 {
                     loggedInClients.Remove(operation.IpAddress);
                     operation.IsSuccessfully = true;
@@ -101,7 +89,7 @@ namespace RealtorServer.Model
                     }
                     else operation.IsSuccessfully = false;
                 }
-                else if(operation.OperationType == OperationType.ToFire)
+                else if (operation.OperationType == OperationType.ToFire)
                 {
                     if (credentialContext.Credentials.FirstOrDefault(cred => cred.Name == credential.Name) != null)
                     {
@@ -126,11 +114,9 @@ namespace RealtorServer.Model
             }
             finally
             {
-                identityResults.Enqueue(operation);
+                outcomingQueue.Enqueue(operation);
             }
         }
-
-
         private Boolean FindMatch(Credential credential)
         {
             Credential match = credentialContext.Credentials.FirstOrDefault(cred =>
@@ -142,20 +128,9 @@ namespace RealtorServer.Model
             else
                 return true;
         }
-
-
         private String GetToken()
         {
             return (new Guid()).ToString();
-        }
-
-
-        private void UpdateLog(String text)
-        {
-            dispatcher.BeginInvoke(new Action(() =>
-            {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yyyy hh:mm"), "IdentityServer" + text));
-            }));
         }
     }
 }

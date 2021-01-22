@@ -20,43 +20,52 @@ namespace RealtorServer.ViewModel
 {
     class RealtorServerViewModel
     {
+        private AlbumContext albumContext = new AlbumContext();
+        private RealtyContext realtyContext = new RealtyContext();
+        private Queue<Operation> identityQueue = new Queue<Operation>();
+        private Queue<Operation> outcomingOperations = new Queue<Operation>();
+
         public ICommand RunCommand { get; private set; }
         public ICommand StopCommand { get; private set; }
-        public Server CurrentServer { get; private set; }
-        public RealtyContext Realty { get; private set; }
-        public AlbumContext AlbumContext { get; private set; }
-        public CredentialServer IdentityServer { get; private set; }
+        public LocalServer CurrentServer { get; private set; }
+        public CredentialServer CredentialServer { get; private set; }
+        public NewIdentityServer IdentityServer { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
-       
+        
         public RealtorServerViewModel()
         {
             Log = new ObservableCollection<LogMessage>();
-            IdentityServer = new CredentialServer(Dispatcher.CurrentDispatcher);
-            CurrentServer = new Server(Dispatcher.CurrentDispatcher);
+            
+            CredentialServer = new CredentialServer(Dispatcher.CurrentDispatcher);
+            CurrentServer = new LocalServer(Dispatcher.CurrentDispatcher);
 
-            IdentityServer.Log.CollectionChanged += (sender, e) => UpdateLog(e.NewItems);
-            IdentityServer.IdentityResults.CollectionChanged += (sender, e) => HandleIdentityResult(e.NewItems);
-            CurrentServer.Log.CollectionChanged += (sender, e) => UpdateLog(e.NewItems);
-            CurrentServer.IncomingOperations.CollectionChanged += (sender, e) => HandleIncomingOperations(e.NewItems);
+            IdentityServer = new NewIdentityServer(Dispatcher.CurrentDispatcher, Log, identityQueue, outcomingOperations);
 
             RunCommand = new CustomCommand((obj) =>
             {
-                Dispatcher.CurrentDispatcher.InvokeAsync(IdentityServer.RunAsync);
+                Dispatcher.CurrentDispatcher.InvokeAsync(CredentialServer.RunAsync);
                 Dispatcher.CurrentDispatcher.InvokeAsync(CurrentServer.RunAsync);
             });
             StopCommand = new CustomCommand((obj) =>
             {
-                Dispatcher.CurrentDispatcher.Invoke(IdentityServer.Stop);
+                Dispatcher.CurrentDispatcher.Invoke(CredentialServer.Stop);
                 Dispatcher.CurrentDispatcher.Invoke(CurrentServer.Stop);
             });
-
-            Realty = new RealtyContext();
-            AlbumContext = new AlbumContext();
-
 
 
             //Test();
         }
+
+
+
+
+
+
+
+
+
+
+
 
         private void HandleIdentityResult(IList results)
         {
@@ -77,12 +86,12 @@ namespace RealtorServer.ViewModel
                         {
                             case OperationType.Register:
                                 {
-                                    IdentityServer.IdentityQueue.Enqueue(operation);
+                                    CredentialServer.IdentityQueue.Enqueue(operation);
                                     break;
                                 }
                             case OperationType.Login:
                                 {
-                                    IdentityServer.IdentityQueue.Enqueue(operation);
+                                    CredentialServer.IdentityQueue.Enqueue(operation);
                                     break;
                                 }
                             case OperationType.Add:
@@ -144,13 +153,13 @@ namespace RealtorServer.ViewModel
                                 if (newDBFlat.CustomerId != -1 && newDBFlat.AlbumId != -1)
                                 {
                                     //добавить в бд
-                                    Realty.Flats.Local.Add(newDBFlat);
+                                    realtyContext.Flats.Local.Add(newDBFlat);
                                     //отправить подтверждение
                                     operation.IsSuccessfully = true;
                                     operation.Data = "";
                                     CurrentServer.OperationResults.Add(operation);
                                     //отправить всем клиентам обновление
-                                    DBFlat dbFlat = Realty.Flats.Local.First<DBFlat>(fl => fl.Location == newDBFlat.Location);
+                                    DBFlat dbFlat = realtyContext.Flats.Local.First<DBFlat>(fl => fl.Location == newDBFlat.Location);
                                     newFlat.Id = dbFlat.Id;
                                     Operation updateOperation = new Operation()
                                     {
@@ -184,8 +193,8 @@ namespace RealtorServer.ViewModel
         }
         private Int32 AddAlbum(Album album)
         {
-            AlbumContext.Albums.Local.Add(album);
-            Album newAlbum = AlbumContext.Albums.Local.First(alb =>
+            albumContext.Albums.Local.Add(album);
+            Album newAlbum = albumContext.Albums.Local.First(alb =>
             alb.Location == album.Location &&
             alb.Preview == album.Preview &&
             alb.PhotoList == album.PhotoList);
@@ -193,8 +202,8 @@ namespace RealtorServer.ViewModel
         }
         private Int32 AddCustomer(Customer customer)
         {
-            Realty.Customers.Local.Add(customer);
-            Customer newCust = Realty.Customers.Local.First<Customer>(cus =>
+            realtyContext.Customers.Local.Add(customer);
+            Customer newCust = realtyContext.Customers.Local.First<Customer>(cus =>
             cus.Name == customer.Name &&
             cus.PhoneNumbers == customer.PhoneNumbers);
             return newCust.Id;
@@ -205,7 +214,7 @@ namespace RealtorServer.ViewModel
             Boolean result = true;
             if (objectType == ObjectType.Flat)
             {
-                if (Realty.Flats.Local.Where<DBFlat>(flat =>
+                if (realtyContext.Flats.Local.Where<DBFlat>(flat =>
                     flat.Location.City == location.City &&
                     flat.Location.Street == location.Street &&
                     flat.Location.HouseNumber == location.HouseNumber &&
@@ -215,7 +224,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.House)
             {
-                if (Realty.Houses.Local.Where<House>(house =>
+                if (realtyContext.Houses.Local.Where<House>(house =>
                      house.Location.City == location.City &&
                      house.Location.Street == location.Street &&
                      house.Location.HouseNumber == location.HouseNumber &&
@@ -225,7 +234,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.Customer)
             {
-                if (Realty.Customers.Local.Where<Customer>(cus =>
+                if (realtyContext.Customers.Local.Where<Customer>(cus =>
                      cus.Name == customer.Name &&
                      cus.PhoneNumbers == customer.PhoneNumbers
                    ).Count() == 0)
@@ -233,7 +242,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.Album)
             {
-                if (AlbumContext.Albums.Local.Where<Album>(alb =>
+                if (albumContext.Albums.Local.Where<Album>(alb =>
                     alb.Location == album.Location &&
                     alb.Preview == album.Preview &&
                     alb.PhotoList == album.PhotoList
@@ -247,7 +256,7 @@ namespace RealtorServer.ViewModel
             Int32 id = -1;
             if (objectType == ObjectType.Flat)
             {
-                ObservableCollection<DBFlat> flats = (ObservableCollection<DBFlat>)Realty.Flats.Local.Where<DBFlat>(flat =>
+                ObservableCollection<DBFlat> flats = (ObservableCollection<DBFlat>)realtyContext.Flats.Local.Where<DBFlat>(flat =>
                     flat.Location.City == location.City &&
                     flat.Location.Street == location.Street &&
                     flat.Location.HouseNumber == location.HouseNumber &&
@@ -260,7 +269,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.House)
             {
-                ObservableCollection<House> houses = (ObservableCollection<House>)Realty.Houses.Local.Where<House>(house =>
+                ObservableCollection<House> houses = (ObservableCollection<House>)realtyContext.Houses.Local.Where<House>(house =>
                      house.Location.City == location.City &&
                      house.Location.Street == location.Street &&
                      house.Location.HouseNumber == location.HouseNumber &&
@@ -272,7 +281,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.Customer)
             {
-                ObservableCollection<Customer> customers = (ObservableCollection<Customer>)Realty.Customers.Local.Where<Customer>(cus =>
+                ObservableCollection<Customer> customers = (ObservableCollection<Customer>)realtyContext.Customers.Local.Where<Customer>(cus =>
                     cus.Name == customer.Name &&
                     cus.PhoneNumbers == customer.PhoneNumbers);
                 if (customers != null && customers.Count != 0)
@@ -282,7 +291,7 @@ namespace RealtorServer.ViewModel
             }
             else if (objectType == ObjectType.Album)
             {
-                ObservableCollection<Album> albums = (ObservableCollection<Album>)AlbumContext.Albums.Local.Where<Album>(alb =>
+                ObservableCollection<Album> albums = (ObservableCollection<Album>)albumContext.Albums.Local.Where<Album>(alb =>
                 alb.Location == album.Location &&
                 alb.Preview == album.Preview &&
                 alb.PhotoList == album.PhotoList);

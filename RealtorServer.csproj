@@ -107,12 +107,13 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Model\NewIdentityServer.cs" />
-    <Compile Include="Model\RemoteClient.cs" />
+    <Compile Include="Model\RealtyServer.cs" />
+    <Compile Include="Model\LocalClient.cs" />
     <Compile Include="Model\CredentialContext.cs" />
     <Compile Include="Model\CredentialServer.cs" />
     <Compile Include="Model\AlbumContext.cs" />
-    <Compile Include="Model\PrimaryFilter.cs" />
     <Compile Include="Model\RealtyContext.cs" />
+    <Compile Include="Model\LocalServer.cs" />
     <Compile Include="Model\Server.cs" />
     <Compile Include="ViewModel\RealtorServerViewModel.cs" />
     <Compile Include="View\MainWindow.xaml.cs">

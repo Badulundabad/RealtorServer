@@ -1,152 +1,54 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
-using System.Net;
-using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
 
 namespace RealtorServer.Model
 {
-    public class Server : INotifyPropertyChanged
+    public abstract class Server : INotifyPropertyChanged
     {
-        Boolean isRunning;
-        Socket listeningSocket;
-        Dispatcher uiDispatcher;
-        #region Properties
-        public Boolean IsRunning
+        protected String serverName = "";
+        protected Boolean isRunning = false;
+        protected Dispatcher dispatcher;
+        protected ObservableCollection<LogMessage> log;
+        protected Queue<Operation> incomingQueue;
+        protected Queue<Operation> outcomingQueue;
+
+        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> input, Queue<Operation> output)
         {
-            get => isRunning;
-            private set
-            {
-                isRunning = value;
-                OnProperyChanged();
-            }
-        }
-        public event PropertyChangedEventHandler PropertyChanged;
-        public List<Operation> OperationResults { get; set; }
-        public ObservableCollection<Operation> IncomingOperations { get; private set; }
-        public ObservableCollection<LogMessage> Log { get; private set; }
-        public ObservableCollection<RemoteClient> OnlineClients { get; private set; }
-        #endregion
-        //The Server should add the address from message came
-        public Server(Dispatcher dispatcher)
-        {
-            uiDispatcher = dispatcher;
-            OperationResults = new List<Operation>();
-            Log = new ObservableCollection<LogMessage>();
-            OnlineClients = new ObservableCollection<RemoteClient>();
-            IncomingOperations = new ObservableCollection<Operation>();
+            serverName = this.GetType().Name;
+            this.dispatcher = dispatcher;
+            this.log = log;
+            incomingQueue = input;
+            outcomingQueue = output;
         }
 
-        public async void RunAsync()
+        public virtual async Task RunAsync()
         {
-            await Task.Run(async () =>
+            await Task.Run(() =>
             {
-                try
-                {
-                    IsRunning = true;
-                    IPEndPoint serverAddress = new IPEndPoint(IPAddress.Any, 8005);
-                    using (listeningSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
-                    {
-                        listeningSocket.Bind(serverAddress);
-                        listeningSocket.Listen(10);
-                        UpdateLog("Server", "is running");
 
-                        Socket clientSocket;
-                        do
-                        {
-                            if (listeningSocket.Poll(100000, SelectMode.SelectRead))
-                            {
-                                clientSocket = listeningSocket.Accept();
-                                RemoteClient client = new RemoteClient(clientSocket, this);
-                                client.PropertyChanged += (sender, e) =>
-                                {
-                                    if (e.PropertyName == "IsConnected")
-                                    {
-                                        if (!((RemoteClient)sender).IsConnected)
-                                            uiDispatcher.BeginInvoke(new Action(() =>
-                                            {
-                                                OnlineClients.Remove((RemoteClient)sender);
-                                            }));
-                                    }
-                                };
-                                await uiDispatcher.BeginInvoke(new Action(() => OnlineClients.Add(client)));
-                                await Task.Run(client.Connect);
-                            }
-                        }
-                        while (IsRunning);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    UpdateLog("Server", "(RunAsync)threw an exception: " + ex.Message);
-                    Stop();
-                }
-                finally
-                {
-                    UpdateLog("Server", "was stopped");
-                }
             });
         }
         public void Stop()
         {
-            try
-            {
-                IsRunning = false;
-                if (OnlineClients.Count > 0)
-                    foreach (RemoteClient client in OnlineClients)
-                    {
-                        client.Disconnect();
-                    }
-            }
-            catch (Exception ex)
-            {
-                UpdateLog("Server", "(Stop)threw an exception: " + ex.Message);
-            }
+            isRunning = false;
         }
-        internal void UpdateLog(String ipAddress, String message)
+        protected void UpdateLog(String text)
         {
-            try
+            dispatcher.BeginInvoke(new Action(() =>
             {
-                uiDispatcher.BeginInvoke(new Action(() =>
-                {
-                    Log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), ipAddress + " " + message));
-                }));
-            }
-            catch (Exception ex)
-            {
-                UpdateLog(ipAddress, "(UpdateLog)threw an exception: " + ex.Message);
-            }
+                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), serverName + text));
+            }));
         }
-        internal void UpdateOperationQueue(String ipAddress, String operationJson)
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected void OnProperyChanged([CallerMemberName] String prop = null)
         {
-            try
-            {
-                Operation operation = JsonSerializer.Deserialize<Operation>(operationJson);
-                operation.IpAddress = ipAddress;
-                uiDispatcher.BeginInvoke(new Action(() =>
-                {
-                    IncomingOperations.Add(operation);
-                }));
-            }
-            catch (Exception ex)
-            {
-                UpdateLog(ipAddress, "(Stop)threw an exception: " + ex.Message);
-            }
-        }
-        private void OnProperyChanged([CallerMemberName] String prop = "")
-        {
-            if (PropertyChanged != null)
-            {
-                PropertyChanged(this, new PropertyChangedEventArgs(prop));
-            }
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
         }
     }
 }
