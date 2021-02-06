@@ -1,7 +1,7 @@
 ﻿using System.Data.Entity;
 using RealtyModel.Model;
 
-namespace RealtorServer.Model
+namespace RealtorServer.Model.DataBase
 {
     public class CredentialContext : DbContext
     {

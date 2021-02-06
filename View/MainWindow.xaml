@@ -58,12 +58,12 @@
             <Setter Property="Grid.Row" Value="2"/>
             <Setter Property="Grid.ColumnSpan" Value="2"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding CurrentServer.IsRunning}" Value="false">
+                <DataTrigger Binding="{Binding IsRunning}" Value="false">
                     <Setter Property="Content" Value="Run"/>
                     <Setter Property="Background" Value="Green"/>
                     <Setter Property="Command" Value="{Binding RunCommand}"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding CurrentServer.IsRunning}" Value="true">
+                <DataTrigger Binding="{Binding IsRunning}" Value="true">
                     <Setter Property="Content" Value="Stop"/>
                     <Setter Property="Background" Value="Red"/>
                     <Setter Property="Command" Value="{Binding StopCommand}"/>
@@ -92,7 +92,7 @@
                  Width="280"
                  Grid.Column="1"
                  ItemTemplate="{StaticResource UserItem_Style}"
-                 ItemsSource="{Binding IdentityServer.Users, UpdateSourceTrigger=PropertyChanged}"/>
+                 ItemsSource="{Binding IdentityServer, UpdateSourceTrigger=PropertyChanged}"/>
         <ListBox x:Name="OnlineClients"
                  Height="130"
                  Width="280"

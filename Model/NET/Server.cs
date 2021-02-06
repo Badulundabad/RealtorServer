@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
 
-namespace RealtorServer.Model
+namespace RealtorServer.Model.NET
 {
     public abstract class Server : INotifyPropertyChanged
     {
@@ -18,20 +19,34 @@ namespace RealtorServer.Model
         protected Queue<Operation> incomingQueue;
         protected Queue<Operation> outcomingQueue;
 
-        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> input, Queue<Operation> output)
+        public Queue<Operation> IncomingQueue
         {
-            serverName = this.GetType().Name;
+            get => incomingQueue;
+            protected set => incomingQueue = value;
+        }
+
+        public Boolean IsRunning
+        {
+            get => isRunning;
+            protected set
+            {
+                isRunning = value;
+                OnProperyChanged();
+            }
+        }
+
+        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output)
+        {
+            serverName = GetType().Name;
             this.dispatcher = dispatcher;
             this.log = log;
-            incomingQueue = input;
             outcomingQueue = output;
         }
 
-        public virtual async Task RunAsync()
+        public virtual async void RunAsync(CancellationToken cancellationToken)
         {
             await Task.Run(() =>
             {
-
             });
         }
         public void Stop()
@@ -46,7 +61,7 @@ namespace RealtorServer.Model
             }));
         }
         public event PropertyChangedEventHandler PropertyChanged;
-        protected void OnProperyChanged([CallerMemberName] String prop = null)
+        protected void OnProperyChanged([CallerMemberName] string prop = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
         }
