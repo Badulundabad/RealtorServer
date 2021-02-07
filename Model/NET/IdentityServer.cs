@@ -31,12 +31,13 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
+                    UpdateLog(" has ran");
                     while (true)
                     {
                         while (IncomingQueue.Count > 0)
                         {
                             cancellationToken.ThrowIfCancellationRequested();
-                            Handle(incomingQueue.Dequeue());
+                            Handle();
                         }
                     }
                 }
@@ -60,10 +61,12 @@ namespace RealtorServer.Model.NET
                 return true;
             else return false;
         }
-        private void Handle(Operation operation)
+        private void Handle()
         {
+            Operation operation = new Operation();
             try
             {
+                operation = IncomingQueue.Dequeue();
                 Credential credential = FindMatchingCredential(operation.Name, operation.Data);
 
                 if (operation.OperationParameters.Type == OperationType.Login && credential != null)
@@ -84,7 +87,7 @@ namespace RealtorServer.Model.NET
                     if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
                     {
                         operation = Register(operation);
-                        UpdateLog($"{credential.Name} has registered");
+                        UpdateLog($"Alibaba has registered");
                     }
                     else operation.IsSuccessfully = false;
                 }
@@ -151,12 +154,12 @@ namespace RealtorServer.Model.NET
         }
         private Operation Register(Operation operation)
         {
-            Credential credential = new Credential()
-            {
-                Name = operation.Name,
-                Password = operation.Data,
-                RegistrationDate = DateTime.Now
-            };
+            Agent agent = new Agent();
+            Credential credential = new Credential();
+            credential.Agent = agent;
+            credential.Name = operation.Name;
+            credential.Password = operation.Data;
+            credential.RegistrationDate = DateTime.Now;
             credentialContext.Credentials.Local.Add(credential);
             credentialContext.SaveChanges();
             operation.Data = "";

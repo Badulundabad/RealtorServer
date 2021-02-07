@@ -18,13 +18,15 @@ namespace RealtorServer.Model.NET
     public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
-        String name;
-        String ipAddress;
-        Boolean isConnected;
-        Socket socket;
-        Dispatcher dispatcher;
-        ObservableCollection<LogMessage> log;
-        Queue<Operation> incomingOperations;
+        private String name;
+        private String ipAddress;
+        private Boolean isConnected;
+        private Socket socket;
+        private Dispatcher dispatcher;
+        private Queue<Operation> incomingOperations;
+        private ObservableCollection<LogMessage> log;
+        private CancellationTokenSource tokenSource;
+        private CancellationToken cancellationToken;
         #endregion
 
         #region Properties
@@ -59,36 +61,37 @@ namespace RealtorServer.Model.NET
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
         }
 
-        public async Task ConnectAsync(CancellationToken cancellationToken)
+        public async void ConnectAsync(CancellationTokenSource tokenSource, CancellationToken cancellationToken)
         {
             await Task.Run(() =>
             {
+                this.tokenSource = tokenSource;
+                this.cancellationToken = cancellationToken;
                 try
                 {
                     isConnected = true;
                     UpdateLog("was connected");
-                    Task sendMessagesTask = SendMessagesAsync(cancellationToken);
-                    RecieveMessages(cancellationToken);
+                    SendMessagesAsync();
+                    RecieveMessages();
                 }
                 catch (Exception ex)
                 {
+
                     UpdateLog($"{ipAddress}(Connect) {ex.Message}");
                 }
                 finally
                 {
-                    //UpdateLog($"{ipAddress} was disconnected");
+                    isConnected = false;
+                    UpdateLog($"{ipAddress} was disconnected");
                     socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }
             });
         }
-        internal void Disconnect()
+
+        private void RecieveMessages()
         {
-            isConnected = false;
-        }
-        private void RecieveMessages(CancellationToken cancellationToken)
-        {
-            while (!cancellationToken.IsCancellationRequested)
+            while (isConnected)
             {
                 Byte[] buffer = new Byte[256];
                 Int32 byteCount = 0;
@@ -96,6 +99,7 @@ namespace RealtorServer.Model.NET
 
                 try
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     do
                     {
                         byteCount = socket.Receive(buffer);
@@ -109,19 +113,24 @@ namespace RealtorServer.Model.NET
                         receivedOperation.IpAddress = IpAddress;
                         incomingOperations.Enqueue(receivedOperation);
                     }
-                    else Disconnect();
+                    else isConnected = false;
+                }
+                catch (OperationCanceledException)
+                {
+
                 }
                 catch (Exception ex)
                 {
+                    isConnected = false;
                     UpdateLog($"{ipAddress}(ReceiveMessages) {ex.Message}");
                 }
             }
         }
-        private async Task SendMessagesAsync(CancellationToken cancellationToken)
+        private async void SendMessagesAsync()
         {
             await Task.Run(() =>
             {
-                while (true)
+                while (isConnected)
                 {
                     while (SendQueue.Count > 0)
                     {
@@ -132,17 +141,19 @@ namespace RealtorServer.Model.NET
                             Byte[] data = Encoding.UTF8.GetBytes(json);
                             socket.Send(data);
                         }
-                        catch(OperationCanceledException)
+                        catch (OperationCanceledException)
                         {
                         }
                         catch (Exception ex)
                         {
+                            isConnected = false;
                             UpdateLog($"{ipAddress}(SendMessagesAsync) {ex.Message}");
                         }
                     }
                 }
             });
         }
+
         private void UpdateLog(String text)
         {
             dispatcher.BeginInvoke(new Action(() =>

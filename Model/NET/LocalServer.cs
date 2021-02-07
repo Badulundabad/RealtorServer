@@ -39,7 +39,7 @@ namespace RealtorServer.Model.NET
                     {
                         listeningSocket.Bind(serverAddress);
                         listeningSocket.Listen(10);
-                        UpdateLog(" was ran");
+                        UpdateLog(" has ran");
 
                         Socket clientSocket;
                         while (true)
@@ -50,9 +50,9 @@ namespace RealtorServer.Model.NET
                             {
                                 clientSocket = listeningSocket.Accept();
                                 LocalClient client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-                                Task connectClientTask = client.ConnectAsync(cancellationTokenSource.Token);
-                                dispatcher.BeginInvoke(new Action(() => OnlineClients.Add(connectClientTask)));
-                                UpdateLog("New client was connected");
+                                client.ConnectAsync(cancellationTokenSource, cancellationTokenSource.Token);
+                                //dispatcher.BeginInvoke(new Action(() => OnlineClients.Add(connectClientTask)));
+                                UpdateLog("New client has connected");
                             }
                         }
                     }

@@ -52,7 +52,7 @@ namespace RealtorServer.ViewModel
                 cancellationTokenSource = new CancellationTokenSource();
                 cancellationToken = cancellationTokenSource.Token;
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => RunAsync(Dispatcher.CurrentDispatcher)));
-                //Dispatcher.CurrentDispatcher.BeginInvoke(new Action(async () => await IdentityServer.RunAsync(cancellationToken)));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => IdentityServer.RunAsync(cancellationToken)));
                 //Dispatcher.CurrentDispatcher.BeginInvoke(new Action(async () => await RealtyServer.RunAsync(cancellationToken)));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync(cancellationToken)));
             });
