@@ -16,12 +16,12 @@ namespace RealtorServer.ViewModel
 {
     class RealtorServerViewModel : INotifyPropertyChanged
     {
+        #region Fields and Properties
         private Boolean isRunning = false;
-        private Queue<Operation> outcomingOperations = new Queue<Operation>();
-        private CancellationTokenSource cancellationTokenSource;
+        private Queue<Operation> output = new Queue<Operation>();
+        private Queue<Operation> input = new Queue<Operation>();
+        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private CancellationToken cancellationToken;
-        private Task run;
-
 
         public Boolean IsRunning
         {
@@ -38,111 +38,90 @@ namespace RealtorServer.ViewModel
         public IdentityServer IdentityServer { get; private set; }
         public RealtyServer RealtyServer { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
+        #endregion
 
         public RealtorServerViewModel()
         {
             Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, outcomingOperations);
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, outcomingOperations);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, outcomingOperations);
+            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
+
+            DispatcherTimer filterTask = new DispatcherTimer();
+            filterTask.Interval = TimeSpan.FromMilliseconds(100);
+            filterTask.Tick += (o, e) => CheckQueue();
 
             RunCommand = new CustomCommand((obj) =>
             {
                 IsRunning = true;
-                cancellationTokenSource = new CancellationTokenSource();
-                cancellationToken = cancellationTokenSource.Token;
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => RunAsync(Dispatcher.CurrentDispatcher)));
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => IdentityServer.RunAsync(cancellationToken)));
-                //Dispatcher.CurrentDispatcher.BeginInvoke(new Action(async () => await RealtyServer.RunAsync(cancellationToken)));
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync(cancellationToken)));
+                filterTask.Start();
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => IdentityServer.Run()));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => RealtyServer.Run()));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
             });
             StopCommand = new CustomCommand((obj) =>
             {
                 IsRunning = false;
-                cancellationTokenSource.Cancel();
+                filterTask.Stop();
+                Server.Stop();
+                IdentityServer.Stop();
+                RealtyServer.Stop();
             });
         }
 
-        private async void RunAsync(Dispatcher dispatcher)
+        private void CheckQueue()
         {
-            await Task.Run(() =>
+            //UpdateLog("checking an incoming queue");
+            while (Server.IncomingQueue.Count > 0)
+            {
+                Operation operation = Server.IncomingQueue.Dequeue();
+                if (operation != null)
+                    Handle(operation);
+            }
+            void Handle(Operation operation)
             {
                 try
                 {
-                    UpdateLog(dispatcher, " operation ran");
-
-                    while (true)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        while (Server.IncomingQueue.Count > 0)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            Handle(Server.IncomingQueue.Dequeue());
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    UpdateLog(dispatcher, " operation canceled");
-                }
-                finally
-                {
-                    UpdateLog(dispatcher, " end");
-                }
-            });
-        }
-        private void Handle(Operation operation)
-        {
-            while (true)
-            {
-                try
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    if (operation.OperationParameters.Direction == OperationDirection.Identity)
+                    if(operation.OperationParameters.Type == OperationType.Update)
                     {
                         IdentityServer.IncomingQueue.Enqueue(operation);
-                    }
-                    else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
-                    {
                         RealtyServer.IncomingQueue.Enqueue(operation);
                     }
+
+                    else if (operation.OperationParameters.Direction == OperationDirection.Identity)
+                        IdentityServer.IncomingQueue.Enqueue(operation);
+
+                    else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                        RealtyServer.IncomingQueue.Enqueue(operation);
+
                     else
                     {
                         operation.IsSuccessfully = false;
-                        outcomingOperations.Enqueue(operation);
+                        output.Enqueue(operation);
                     }
-                }
-                catch (OperationCanceledException)
-                {
-
                 }
                 catch (Exception ex)
                 {
-                    UpdateLog(Dispatcher.CurrentDispatcher, $"(Handle) {ex.Message}");
+                    UpdateLog($"(Handle) {ex.Message}");
                     operation.IsSuccessfully = false;
-                    outcomingOperations.Enqueue(operation);
+                    output.Enqueue(operation);
                 }
             }
         }
-        private void UpdateLog(Dispatcher dispatcher, String text)
+
+        private void UpdateLog(String text)
         {
-            //File.AppendAllLines("log.txt", new List<String>() { DateTime.Now.ToString("dd:MM:yy hh:mm") + "Server" + text });
-            LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), "Server" + text);
-            dispatcher.BeginInvoke(new Action(() =>
+            File.AppendAllLines("log.txt", new List<String>() { DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}" });
+
+            //После тестов удалить
+            LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"Server {text}");
+            Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
             {
                 Log.Add(logMessage);
             }));
         }
-        private void UpdateLog(String text)
-        {
-            //File.AppendAllLines("log.txt", new List<String>() { DateTime.Now.ToString("dd:MM:yy hh:mm") + "Server" + text });
-            LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), "Server" + text);
-            Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
-             {
-                 Log.Add(logMessage);
-             }));
-        }
+
         public event PropertyChangedEventHandler PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] String prop = null)
         {

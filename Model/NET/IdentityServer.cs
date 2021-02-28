@@ -15,9 +15,9 @@ namespace RealtorServer.Model.NET
     public class IdentityServer : Server
     {
         private CredentialContext credentialContext = new CredentialContext();
-        private Dictionary<String, String> signedClients = new Dictionary<String, String>();
+        private System.Timers.Timer queueChecker = null;
 
-        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
+        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken cancellationToken) : base(dispatcher, log, output, cancellationToken)
         {
             this.log = log;
             this.dispatcher = dispatcher;
@@ -25,69 +25,68 @@ namespace RealtorServer.Model.NET
             IncomingQueue = new Queue<Operation>();
         }
 
-        public override async void RunAsync(CancellationToken cancellationToken)
+        public void Run()
         {
-            await Task.Run(() =>
+            queueChecker = new System.Timers.Timer();
+            queueChecker.Interval = 100;
+            queueChecker.AutoReset = true;
+            queueChecker.Elapsed += (o, e) =>
             {
-                try
-                {
-                    UpdateLog(" has ran");
-                    while (true)
-                    {
-                        while (IncomingQueue.Count > 0)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-                            Handle();
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-
-                }
-                catch (Exception ex)
-                {
-                    UpdateLog("(RunAsync) " + ex.Message);
-                }
-                finally
-                {
-                    UpdateLog(" was stopped");
-                }
-            });
+                //UpdateLog("is checking a queue");
+                while (IncomingQueue.Count > 0)
+                    Handle();
+            };
+            queueChecker.Start();
+            UpdateLog("has ran");
+        }
+        public override void Stop()
+        {
+            queueChecker.Stop();
+            UpdateLog("has stopped");
         }
         public Boolean CheckAccess(String ipAddress, String token)
         {
-            if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null)
+            //if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null) return true;
+            if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress) != null)
                 return true;
             else return false;
         }
         private void Handle()
         {
-            Operation operation = new Operation();
+            Operation operation = null;
             try
             {
                 operation = IncomingQueue.Dequeue();
+                //Ищем совпадающий credential
                 Credential credential = FindMatchingCredential(operation.Name, operation.Data);
 
                 if (operation.OperationParameters.Type == OperationType.Login && credential != null)
                 {
-                    if (credential.IpAddress != operation.IpAddress || credential.IpAddress != "")
+                    if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
                         LogoutPrevious(credential);
-                    operation = Login(operation, credential);
+                    operation = this.Login(operation, credential);
 
                     UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
                 }
+                else if(operation.OperationParameters.Type == OperationType.Update)
+                {
+                    //Send a list of agents
+                    String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
+                    operation.Data = JsonSerializer.Serialize(agents);
+                    operation.IsSuccessfully = true;
+                    outcomingQueue.Enqueue(operation);
+                }
                 else if (operation.OperationParameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
                 {
-                    operation = Logout(operation, credential);
+                    operation = this.Logout(operation, credential);
                     UpdateLog($"{credential.Name} has logged out");
                 }
                 else if (operation.OperationParameters.Type == OperationType.Register && credential == null)
                 {
                     if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
                     {
-                        operation = Register(operation);
-                        UpdateLog($"Alibaba has registered");
+                        operation = this.Register(operation);
+                        UpdateLog($"{operation.Name} has registered");
                     }
                     else operation.IsSuccessfully = false;
                 }
@@ -96,7 +95,7 @@ namespace RealtorServer.Model.NET
                     //Need a special action to fire a worker 
                     if (CheckAccess(operation.IpAddress, operation.Token))
                     {
-                        operation = ToFire(operation, credential);
+                        operation = this.ToFire(operation, credential);
                         UpdateLog($"{credential.Name} has fired");
                     }
                     else operation.IsSuccessfully = false;
@@ -106,11 +105,12 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 operation.IsSuccessfully = false;
-                UpdateLog("(Handle) " + ex.Message);
+                UpdateLog($"(Handle) {ex.Message}");
             }
             finally
             {
                 outcomingQueue.Enqueue(operation);
+                UpdateLog("added a mes to the outQueue");
             }
         }
 
@@ -118,8 +118,6 @@ namespace RealtorServer.Model.NET
         {
             credential.IpAddress = operation.IpAddress;
             credential.Token = GetToken();
-            //Try without that - credentialContext.Credentials.Local.Add(credential);
-            credentialContext.SaveChanges();
             operation.Data = credential.Token;
             operation.IsSuccessfully = true;
             return operation;
@@ -128,17 +126,11 @@ namespace RealtorServer.Model.NET
         {
             credential.IpAddress = "";
             credential.Token = "";
-            //Try without that - credentialContext.Credentials.Local.Add(credential);
-            credentialContext.SaveChanges();
             operation.IsSuccessfully = true;
             return operation;
         }
         private void LogoutPrevious(Credential credential)
         {
-            credential.IpAddress = "";
-            credential.Token = "";
-            //Try without that - credentialContext.Credentials.Local.Add(credential);
-            credentialContext.SaveChanges();
             outcomingQueue.Enqueue(new Operation()
             {
                 IpAddress = credential.IpAddress,
@@ -151,17 +143,18 @@ namespace RealtorServer.Model.NET
                 Token = credential.Token,
                 IsSuccessfully = true
             });
+            credential.IpAddress = "";
+            credential.Token = "";
         }
         private Operation Register(Operation operation)
         {
-            Agent agent = new Agent();
             Credential credential = new Credential();
-            credential.Agent = agent;
             credential.Name = operation.Name;
             credential.Password = operation.Data;
             credential.RegistrationDate = DateTime.Now;
             credentialContext.Credentials.Local.Add(credential);
             credentialContext.SaveChanges();
+
             operation.Data = "";
             operation.IsSuccessfully = true;
             return operation;

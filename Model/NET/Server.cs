@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ namespace RealtorServer.Model.NET
         protected ObservableCollection<LogMessage> log;
         protected Queue<Operation> incomingQueue;
         protected Queue<Operation> outcomingQueue;
+        protected CancellationToken serverToken;
 
         public Queue<Operation> IncomingQueue
         {
@@ -35,7 +37,7 @@ namespace RealtorServer.Model.NET
             }
         }
 
-        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output)
+        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken token)
         {
             serverName = GetType().Name;
             this.dispatcher = dispatcher;
@@ -43,21 +45,21 @@ namespace RealtorServer.Model.NET
             outcomingQueue = output;
         }
 
-        public virtual async void RunAsync(CancellationToken cancellationToken)
+        public virtual async void RunAsync()
         {
             await Task.Run(() =>
             {
             });
         }
-        public void Stop()
+        public virtual void Stop()
         {
-            isRunning = false;
+            IsRunning = false;
         }
         protected void UpdateLog(String text)
         {
             dispatcher.BeginInvoke(new Action(() =>
             {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), serverName + text));
+                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm:ss"), $"{serverName} {text}"));
             }));
         }
         public event PropertyChangedEventHandler PropertyChanged;

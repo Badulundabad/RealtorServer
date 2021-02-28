@@ -18,17 +18,14 @@ namespace RealtorServer.Model.NET
     public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
-        private String name;
-        private String ipAddress;
-        private Boolean isConnected;
-        private Socket socket;
-        private Dispatcher dispatcher;
-        private Queue<Operation> incomingOperations;
-        private ObservableCollection<LogMessage> log;
-        private CancellationTokenSource tokenSource;
-        private CancellationToken cancellationToken;
+        private String name = "";
+        private String ipAddress = "";
+        private Boolean isConnected = false;
+        private Socket socket = null;
+        private Dispatcher dispatcher = null;
+        private Queue<Operation> incomingOperations = null;
+        private ObservableCollection<LogMessage> log = null;
         #endregion
-
         #region Properties
         public String Name
         {
@@ -48,6 +45,14 @@ namespace RealtorServer.Model.NET
                 OnPropertyChanged();
             }
         }
+        public Boolean IsConnected
+        {
+            get=> isConnected;
+            private set
+            {
+                isConnected = value;
+            }
+        }
         public Queue<Operation> SendQueue { get; private set; }
         #endregion
 
@@ -61,107 +66,115 @@ namespace RealtorServer.Model.NET
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
         }
 
-        public async void ConnectAsync(CancellationTokenSource tokenSource, CancellationToken cancellationToken)
+        public async void ConnectAsync()
         {
             await Task.Run(() =>
             {
-                this.tokenSource = tokenSource;
-                this.cancellationToken = cancellationToken;
                 try
                 {
                     isConnected = true;
-                    UpdateLog("was connected");
-                    SendMessagesAsync();
-                    RecieveMessages();
+                    using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100)) 
+                        RecieveMessages();
                 }
                 catch (Exception ex)
                 {
-
-                    UpdateLog($"{ipAddress}(Connect) {ex.Message}");
+                    UpdateLog($"(Connect) {ex.Message}");
                 }
                 finally
                 {
-                    isConnected = false;
-                    UpdateLog($"{ipAddress} was disconnected");
+                    UpdateLog("was disconnected");
                     socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }
             });
+        }
+        public void Disconnect()
+        {
+            SendQueue = new Queue<Operation>();
+            //Send a disconnect message
+            isConnected = false;
         }
 
         private void RecieveMessages()
         {
             while (isConnected)
             {
-                Byte[] buffer = new Byte[256];
-                Int32 byteCount = 0;
-                StringBuilder incomingMessage = new StringBuilder();
-
-                try
+                if (socket.Poll(100000, SelectMode.SelectRead))
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    do
+                    Byte[] buffer = new Byte[1500];
+                    Int32 byteCount;
+                    StringBuilder incomingMessage = new StringBuilder();
+
+                    try
                     {
-                        byteCount = socket.Receive(buffer);
-                        incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
-                    }
-                    while (socket.Available > 0);
+                        do
+                        {
+                            byteCount = socket.Receive(buffer);
+                            incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
+                        }
+                        while (socket.Available > 0);
 
-                    if (!string.IsNullOrWhiteSpace(incomingMessage.ToString()))
+                        if (!string.IsNullOrWhiteSpace(incomingMessage.ToString()))
+                        {
+                            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(incomingMessage.ToString());
+                            receivedOperation.IpAddress = IpAddress;
+                            incomingOperations.Enqueue(receivedOperation);
+                        }
+                        UpdateLog("Receive" + incomingMessage.ToString());
+                    }
+                    catch (Exception ex)
                     {
-                        Operation receivedOperation = JsonSerializer.Deserialize<Operation>(incomingMessage.ToString());
-                        receivedOperation.IpAddress = IpAddress;
-                        incomingOperations.Enqueue(receivedOperation);
+                        isConnected = false;
+                        UpdateLog($"{ipAddress}(ReceiveMessages) {ex.Message}");
                     }
-                    else isConnected = false;
-                }
-                catch (OperationCanceledException)
-                {
-
-                }
-                catch (Exception ex)
-                {
-                    isConnected = false;
-                    UpdateLog($"{ipAddress}(ReceiveMessages) {ex.Message}");
                 }
             }
         }
-        private async void SendMessagesAsync()
+        private void CheckOutQueue()
         {
-            await Task.Run(() =>
+            while (isConnected && SendQueue.Count > 0)
             {
-                while (isConnected)
+                try
                 {
-                    while (SendQueue.Count > 0)
+                    Operation operation = SendQueue.Dequeue();
+                    if (operation != null)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        try
-                        {
-                            String json = JsonSerializer.Serialize<Operation>(SendQueue.Dequeue());
-                            Byte[] data = Encoding.UTF8.GetBytes(json);
-                            socket.Send(data);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                        }
-                        catch (Exception ex)
-                        {
-                            isConnected = false;
-                            UpdateLog($"{ipAddress}(SendMessagesAsync) {ex.Message}");
-                        }
+                        String json = JsonSerializer.Serialize<Operation>(operation);
+                        Byte[] data = Encoding.UTF8.GetBytes(json);
+                        socket.Send(data);
+                        UpdateLog("Send " + json);
                     }
                 }
-            });
+                catch (Exception ex)
+                {
+                    UpdateLog($"{ipAddress}(SendMessagesAsync) {ex.Message}");
+                }
+            }
+        }
+
+        //Maybe this need to delete
+        private void Send(Operation operation)
+        {
+            try
+            {
+                String json = JsonSerializer.Serialize<Operation>(operation);
+                Byte[] data = Encoding.UTF8.GetBytes(json);
+                socket.Send(data);
+            }
+            catch (Exception ex)
+            {
+                isConnected = false;
+                UpdateLog($"{ipAddress}(SendMessagesAsync) {ex.Message}");
+            }
         }
 
         private void UpdateLog(String text)
         {
             dispatcher.BeginInvoke(new Action(() =>
             {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), text));
+                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"{ipAddress} {text}"));
             }));
         }
-
         private void OnPropertyChanged([CallerMemberName] String prop = "")
         {
             if (PropertyChanged != null)

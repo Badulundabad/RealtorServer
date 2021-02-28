@@ -106,7 +106,6 @@ C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\System.Threading.Tasks.Ext
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\Microsoft.Bcl.AsyncInterfaces.dll
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\EntityFramework.xml
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\EntityFramework.SqlServer.xml
-C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\ImageTranscoding.pdb
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\RealtyModel.pdb
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\System.Buffers.xml
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\System.Data.SQLite.xml
@@ -119,3 +118,5 @@ C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.Properties.R
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.GenerateResource.cache
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.CoreCompileInputs.cache
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.CopyComplete
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.dll
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.pdb

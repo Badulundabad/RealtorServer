@@ -13,7 +13,6 @@ namespace RealtorServer.Model.DataBase
             Districts.Load();
             Streets.Load();
             Locations.Load();
-            Agents.Load();
             Albums.Load();
             Customers.Load();
         }
@@ -25,7 +24,6 @@ namespace RealtorServer.Model.DataBase
         public DbSet<District> Districts {get;set;}
         public DbSet<Street> Streets {get;set;}
 
-        public DbSet<Agent> Agents {get;set;}
         public DbSet<Customer> Customers { get; set; }
 
         public DbSet<Album> Albums {get;set;}

@@ -13,7 +13,7 @@
         <DataTemplate x:Key="LogItem_Style">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="95"/>
                     <ColumnDefinition MinWidth="35"/>
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>

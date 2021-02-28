@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -13,11 +14,11 @@ namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private Socket listeningSocket;
-
+        private Socket listeningSocket = null;
+        private List<LocalClient> clients = new List<LocalClient>();
         public ObservableCollection<Task> OnlineClients { get; private set; }
 
-        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
+        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken cancellationToken) : base(dispatcher, log, output, cancellationToken)
         {
             this.log = log;
             this.dispatcher = dispatcher;
@@ -26,12 +27,11 @@ namespace RealtorServer.Model.NET
             OnlineClients = new ObservableCollection<Task>();
         }
 
-        public override async void RunAsync(CancellationToken cancellationToken)
+        public override async void RunAsync()
         {
+            IsRunning = true;
             await Task.Run(() =>
             {
-                IsRunning = true;
-                CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
                 try
                 {
                     IPEndPoint serverAddress = new IPEndPoint(IPAddress.Any, 8005);
@@ -39,50 +39,109 @@ namespace RealtorServer.Model.NET
                     {
                         listeningSocket.Bind(serverAddress);
                         listeningSocket.Listen(10);
-                        UpdateLog(" has ran");
-
                         Socket clientSocket;
-                        while (true)
+                        using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 500))
                         {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            if (listeningSocket.Poll(100000, SelectMode.SelectRead))
+                            UpdateLog("has ran");
+                            while (IsRunning)
                             {
-                                clientSocket = listeningSocket.Accept();
-                                LocalClient client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-                                client.ConnectAsync(cancellationTokenSource, cancellationTokenSource.Token);
-                                //dispatcher.BeginInvoke(new Action(() => OnlineClients.Add(connectClientTask)));
-                                UpdateLog("New client has connected");
-                            }
-                        }
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    cancellationTokenSource.Cancel();
-                    while (OnlineClients.Count > 0)
-                    {
-                        Int32 count = OnlineClients.Count;
-                        for(Int32 i = 0; i < count; i++)
-                        {
-                            //Quite possibly if that part didn't work
-                            if(OnlineClients[i].Status == TaskStatus.Faulted || OnlineClients[i].Status == TaskStatus.Canceled)
-                            {
-                                OnlineClients.Remove(OnlineClients[i]);
+                                //UpdateLog(" is working");
+                                if (listeningSocket.Poll(100000, SelectMode.SelectRead))
+                                {
+                                    clientSocket = listeningSocket.Accept();
+                                    var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
+                                    client.ConnectAsync();
+                                    clients.Add(client);
+                                    UpdateLog("New client has connected");
+                                }
                             }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    UpdateLog("(RunAsync) " + ex.Message);
+                    UpdateLog($"(RunAsync) {ex.Message}");
                 }
                 finally
                 {
-                    UpdateLog(" was stopped");
-                    IsRunning = false;
+                    UpdateLog("is trying to stop");
+                    foreach (LocalClient client in clients)
+                    {
+                        client.Disconnect();
+                    }
+                    LocalClient[] clientArray = clients.ToArray();
+                    System.Timers.Timer timer = new System.Timers.Timer();
+                    timer.AutoReset = false;
+                    if (clients.Count == 0)
+                        timer.Interval = 100;
+                    else
+                        timer.Interval = 150 * clients.Count;
+                    timer.Elapsed += (o, e) =>
+                    {
+                        foreach (LocalClient client in clientArray)
+                        {
+                            clients.Remove(client);
+                        }
+                        UpdateLog("has stopped");
+                    };
+                    timer.Enabled = true;
                 }
             });
+        }
+        public async void RunUDPMarkerAsync()
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                    socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
+                    socket.Bind(new IPEndPoint(IPAddress.Any, 8080));
+
+                    byte[] buffer = new byte[socket.ReceiveBufferSize];
+                    EndPoint endPoint = new IPEndPoint(IPAddress.None, 8080);
+                    while (IsRunning)
+                    {
+                        UpdateLog("is listening");
+                        if (socket.Poll(1000000, SelectMode.SelectRead))
+                        {
+                            Int32 byteCount = socket.ReceiveFrom(buffer, ref endPoint);
+                            if (byteCount == 1 && buffer[0] == 0x10)
+                                socket.SendTo(new byte[] { 0x20 }, endPoint);
+                        }
+                    }
+                }
+                catch(Exception ex)
+                {
+                    UpdateLog(ex.Message);
+                }
+            });
+        }
+
+        private void CheckOutQueue()
+        {
+            try
+            {
+                //UpdateLog("is checking a queue");
+                while (IsRunning && outcomingQueue.Count > 0)
+                {
+                    Operation operation = outcomingQueue.Dequeue();
+                    if (operation != null)
+                    {
+                        foreach (LocalClient client in clients)
+                        {
+                            if (operation.IpAddress == client.IpAddress)
+                            {
+                                client.SendQueue.Enqueue(operation);
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateLog($"(CheckOutQueue) {ex.Message}");
+            }
         }
     }
 }
