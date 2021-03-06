@@ -3,16 +3,12 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using System.Windows.Threading;
 using System.Data.Entity;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using System.Threading;
-using System.Net;
-using System.Net.NetworkInformation;
-using RandomFlatGenerator;
 
 namespace RealtorServer.Model.NET
 {
@@ -22,7 +18,7 @@ namespace RealtorServer.Model.NET
         private RealtyContext realtyContext = new RealtyContext();
         private AlbumContext albumContext = new AlbumContext();
 
-        public RealtyServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken cancellationToken) : base(dispatcher, log, output, cancellationToken)
+        public RealtyServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
             this.dispatcher = dispatcher;
             this.log = log;
@@ -38,7 +34,10 @@ namespace RealtorServer.Model.NET
             queueChecker.Elapsed += (o, e) => Handle();
             queueChecker.Start();
             UpdateLog("has ran");
+            
+            
             Clear();
+            realtyContext.SaveChanges();
         }
         public override void Stop()
         {
@@ -47,8 +46,6 @@ namespace RealtorServer.Model.NET
         }
         private void Test()
         {
-            Clear();
-            realtyContext.SaveChanges();
 
             Flat flat = new Flat()
             {
@@ -225,20 +222,17 @@ namespace RealtorServer.Model.NET
                                 {
                                     if (newOperation.OperationParameters.Target == TargetType.Flat)
                                         newOperation = ChangeFlat(newOperation);
-                                    //else if (newOperation.OperationParameters.Target == TargetType.House)
-                                    //    newOperation = ChangeHouse(newOperation);
+                                    else if (newOperation.OperationParameters.Target == TargetType.House)
+                                        newOperation = ChangeHouse(newOperation);
                                     else newOperation.IsSuccessfully = false;
                                     break;
                                 }
                             case OperationType.Remove:
                                 {
                                     if (newOperation.OperationParameters.Target == TargetType.Flat)
-                                    {
-                                        realtyContext.Flats.Remove(JsonSerializer.Deserialize<Flat>(newOperation.Data));
-
-                                    }
+                                        newOperation = RemoveFlat(newOperation);
                                     else if (newOperation.OperationParameters.Target == TargetType.House)
-                                        AddHouse(newOperation);
+                                        newOperation = RemoveHouse(newOperation);
                                     else newOperation.IsSuccessfully = false;
                                     break;
                                 }
@@ -267,6 +261,7 @@ namespace RealtorServer.Model.NET
                 if (newOperation != null) outcomingQueue.Enqueue(newOperation);
             }
         }
+
 
         //There need to build some methods
         //Add an object
@@ -313,6 +308,7 @@ namespace RealtorServer.Model.NET
                 {
                     //добавить в бд
                     realtyContext.Houses.Local.Add(newHouse);
+                    realtyContext.SaveChanges();
 
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<House>(newHouse);
@@ -339,7 +335,8 @@ namespace RealtorServer.Model.NET
             {
                 updFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
                 dbFlat = realtyContext.Flats.Find(updFlat.Id);
-                if (UpdateProperties())
+
+                if (dbFlat != null && updFlat != null && operation.Name == dbFlat.Agent && UpdateProperties())
                 {
                     realtyContext.SaveChanges();
 
@@ -422,9 +419,138 @@ namespace RealtorServer.Model.NET
                 }
             }
         }
-        private void ChangeHouse(Operation newOperation)
+        private Operation ChangeHouse(Operation operation)
         {
+            House updHouse = null;
+            House dbHouse = null;
+            try
+            {
+                updHouse = JsonSerializer.Deserialize<House>(operation.Data);
+                dbHouse = realtyContext.Houses.Find(updHouse.Id);
+                if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent && UpdateProperties())
+                {
+                    realtyContext.SaveChanges();
 
+                    operation.Data = JsonSerializer.Serialize<House>(updHouse);
+                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.IpAddress = "broadcast";
+                    operation.IsSuccessfully = true;
+                }
+                else operation.IsSuccessfully = false;
+
+                return operation;
+            }
+            catch (Exception ex)
+            {
+                UpdateLog("(AddObject) " + ex.Message);
+                operation.IsSuccessfully = false;
+                return operation;
+            }
+            Boolean UpdateProperties()
+            {
+                try
+                {
+                    if (operation.OperationParameters.HasBaseChanges)
+                    {
+                        dbHouse.Info = updHouse.Info;
+                        dbHouse.Cost = updHouse.Cost;
+                        dbHouse.HasExclusive = updHouse.HasExclusive;
+                        dbHouse.IsSold = updHouse.IsSold;
+
+                        //TEMPORARY!!!!
+                        dbHouse.Agent = updHouse.Agent;
+                    }
+                    if (operation.OperationParameters.HasAlbumChanges)
+                    {
+                        dbHouse.Album.Preview = updHouse.Album.Preview;
+                        dbHouse.Album.PhotoList = updHouse.Album.PhotoList;
+                    }
+                    if (operation.OperationParameters.HasCustomerChanges)
+                    {
+                        dbHouse.Customer.Name = updHouse.Customer.Name;
+                        dbHouse.Customer.PhoneNumbers = updHouse.Customer.PhoneNumbers;
+                    }
+                    if (operation.OperationParameters.HasLocationChanges)
+                    {
+                        if (updHouse.Location.City.Id == 0)
+                            dbHouse.Location.City = updHouse.Location.City;
+                        else
+                        {
+                            dbHouse.Location.CityId = updHouse.Location.CityId;
+                            dbHouse.Location.City.Id = updHouse.Location.City.Id;
+                            dbHouse.Location.City.Name = updHouse.Location.City.Name;
+                        }
+                        if (updHouse.Location.District.Id == 0)
+                            dbHouse.Location.District = updHouse.Location.District;
+                        else
+                        {
+                            dbHouse.Location.DistrictId = updHouse.Location.DistrictId;
+                            dbHouse.Location.District.Id = updHouse.Location.District.Id;
+                            dbHouse.Location.District.Name = updHouse.Location.District.Name;
+                        }
+                        if (updHouse.Location.Street.Id == 0)
+                            dbHouse.Location.Street = updHouse.Location.Street;
+                        else
+                        {
+                            dbHouse.Location.StreetId = updHouse.Location.StreetId;
+                            dbHouse.Location.Street.Id = updHouse.Location.Street.Id;
+                            dbHouse.Location.Street.Name = updHouse.Location.Street.Name;
+                        }
+                        dbHouse.Location.HouseNumber = updHouse.Location.HouseNumber;
+                        dbHouse.Location.FlatNumber = updHouse.Location.FlatNumber;
+                        dbHouse.Location.HasBanner = updHouse.Location.HasBanner;
+                        dbHouse.Location.HasExchange = updHouse.Location.HasExchange;
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    UpdateLog($"(UpdateProperties) {ex.Message}");
+                    return false;
+                }
+            }
+        }
+        private Operation RemoveFlat(Operation operation)
+        {
+            try
+            {
+                Flat dbFlat = realtyContext.Flats.Find(operation.Data);
+                if (dbFlat != null && operation.Name == dbFlat.Agent)
+                {
+                    realtyContext.Flats.Remove(dbFlat);
+                    realtyContext.SaveChanges();
+                    operation.IsSuccessfully = true;
+                }
+                else operation.IsSuccessfully = false;
+                return operation;
+            }
+            catch (Exception ex)
+            {
+                UpdateLog($"(RemoveHouse) {ex.Message}");
+                operation.IsSuccessfully = false;
+                return operation;
+            }
+        }
+        private Operation RemoveHouse(Operation operation)
+        {
+            try
+            {
+                House dbHouse = realtyContext.Houses.Find(operation.Data);
+                if (dbHouse != null && operation.Name == dbHouse.Agent)
+                {
+                    realtyContext.Houses.Remove(dbHouse);
+                    realtyContext.SaveChanges();
+                    operation.IsSuccessfully = true;
+                }
+                else operation.IsSuccessfully = false;
+                return operation;
+            }
+            catch (Exception ex)
+            {
+                UpdateLog($"(RemoveHouse) {ex.Message}");
+                operation.IsSuccessfully = false;
+                return operation;
+            }
         }
         private void SendFullUpdate(Operation operation)
         {

@@ -82,7 +82,7 @@ namespace RealtorServer.Model.NET
                 }
                 finally
                 {
-                    UpdateLog("was disconnected");
+                    UpdateLog("has disconnected");
                     socket.Shutdown(SocketShutdown.Both);
                     socket.Close();
                 }

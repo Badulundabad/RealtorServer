@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text.Json;
 using System.Threading;
@@ -18,7 +19,7 @@ namespace RealtorServer.Model.NET
         private List<LocalClient> clients = new List<LocalClient>();
         public ObservableCollection<Task> OnlineClients { get; private set; }
 
-        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken cancellationToken) : base(dispatcher, log, output, cancellationToken)
+        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
             this.log = log;
             this.dispatcher = dispatcher;
@@ -45,14 +46,13 @@ namespace RealtorServer.Model.NET
                             UpdateLog("has ran");
                             while (IsRunning)
                             {
-                                //UpdateLog(" is working");
                                 if (listeningSocket.Poll(100000, SelectMode.SelectRead))
                                 {
                                     clientSocket = listeningSocket.Accept();
                                     var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
                                     client.ConnectAsync();
                                     clients.Add(client);
-                                    UpdateLog("New client has connected");
+                                    UpdateLog("new client has connected");
                                 }
                             }
                         }
@@ -88,32 +88,43 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
+        public void SendUdpMarker()
+        {
+            Socket udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
+            udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontRoute, true);
+            udpSocket.ReceiveTimeout = 1000;
+            udpSocket.SendTo(new byte[] { 0x20 }, new IPEndPoint(IPAddress.Broadcast, 8080));
+        }
         public async void RunUDPMarkerAsync()
         {
             await Task.Run(() =>
             {
+                Socket socket = null;
                 try
                 {
-                    Socket socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-                    socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
-                    socket.Bind(new IPEndPoint(IPAddress.Any, 8080));
-
-                    byte[] buffer = new byte[socket.ReceiveBufferSize];
-                    EndPoint endPoint = new IPEndPoint(IPAddress.None, 8080);
-                    while (IsRunning)
+                    using (socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp))
                     {
-                        UpdateLog("is listening");
-                        if (socket.Poll(1000000, SelectMode.SelectRead))
+                        socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontRoute, true);
+                        socket.EnableBroadcast = true;
+                        socket.Bind(new IPEndPoint(IPAddress.Any, 8080));
+
+                        byte[] buffer = new byte[socket.ReceiveBufferSize];
+                        EndPoint endPoint = new IPEndPoint(IPAddress.None, 0);
+                        while (IsRunning)
                         {
-                            Int32 byteCount = socket.ReceiveFrom(buffer, ref endPoint);
-                            if (byteCount == 1 && buffer[0] == 0x10)
-                                socket.SendTo(new byte[] { 0x20 }, endPoint);
+                            if (socket.Poll(1000000, SelectMode.SelectRead))
+                            {
+                                Int32 byteCount = socket.ReceiveFrom(buffer, ref endPoint);
+                                if (byteCount == 1 && buffer[0] == 0x10)
+                                    socket.SendTo(new byte[] { 0x20 }, endPoint);
+                            }
                         }
                     }
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
-                    UpdateLog(ex.Message);
+                    UpdateLog($"(RunUDPMarkerAsync) {ex.Message}");
                 }
             });
         }

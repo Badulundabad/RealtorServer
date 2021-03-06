@@ -20,8 +20,6 @@ namespace RealtorServer.ViewModel
         private Boolean isRunning = false;
         private Queue<Operation> output = new Queue<Operation>();
         private Queue<Operation> input = new Queue<Operation>();
-        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private CancellationToken cancellationToken;
 
         public Boolean IsRunning
         {
@@ -42,10 +40,11 @@ namespace RealtorServer.ViewModel
 
         public RealtorServerViewModel()
         {
+
             Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, input, cancellationToken);
+            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, input);
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, input);
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, input);
 
             DispatcherTimer filterTask = new DispatcherTimer();
             filterTask.Interval = TimeSpan.FromMilliseconds(100);
@@ -67,6 +66,7 @@ namespace RealtorServer.ViewModel
                 Server.Stop();
                 IdentityServer.Stop();
                 RealtyServer.Stop();
+                Log.Clear();
             });
         }
 

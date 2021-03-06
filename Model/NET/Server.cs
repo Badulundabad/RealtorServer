@@ -37,7 +37,7 @@ namespace RealtorServer.Model.NET
             }
         }
 
-        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken token)
+        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output)
         {
             serverName = GetType().Name;
             this.dispatcher = dispatcher;

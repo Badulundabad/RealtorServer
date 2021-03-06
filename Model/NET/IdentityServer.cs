@@ -2,10 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
-using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
@@ -17,7 +15,7 @@ namespace RealtorServer.Model.NET
         private CredentialContext credentialContext = new CredentialContext();
         private System.Timers.Timer queueChecker = null;
 
-        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output, CancellationToken cancellationToken) : base(dispatcher, log, output, cancellationToken)
+        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
             this.log = log;
             this.dispatcher = dispatcher;
