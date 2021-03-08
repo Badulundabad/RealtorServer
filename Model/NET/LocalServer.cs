@@ -88,14 +88,6 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
-        public void SendUdpMarker()
-        {
-            Socket udpSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-            udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, true);
-            udpSocket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.DontRoute, true);
-            udpSocket.ReceiveTimeout = 1000;
-            udpSocket.SendTo(new byte[] { 0x20 }, new IPEndPoint(IPAddress.Broadcast, 8080));
-        }
         public async void RunUDPMarkerAsync()
         {
             await Task.Run(() =>
