@@ -66,7 +66,7 @@ namespace RealtorServer.Model.NET
 
                     UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
                 }
-                else if(operation.OperationParameters.Type == OperationType.Update)
+                else if (operation.OperationParameters.Type == OperationType.Update)
                 {
                     //Send a list of agents
                     String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
@@ -83,7 +83,7 @@ namespace RealtorServer.Model.NET
                 {
                     if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
                     {
-                        operation = this.Register(operation);
+                        operation = Register(operation);
                         UpdateLog($"{operation.Name} has registered");
                     }
                     else operation.IsSuccessfully = false;
@@ -146,16 +146,25 @@ namespace RealtorServer.Model.NET
         }
         private Operation Register(Operation operation)
         {
-            Credential credential = new Credential();
-            credential.Name = operation.Name;
-            credential.Password = operation.Data;
-            credential.RegistrationDate = DateTime.Now;
-            credentialContext.Credentials.Local.Add(credential);
-            credentialContext.SaveChanges();
+            try
+            {
+                Credential credential = new Credential();
+                credential.Name = operation.Name;
+                credential.Password = operation.Data;
+                credential.RegistrationDate = DateTime.Now;
+                credentialContext.Credentials.Local.Add(credential);
+                credentialContext.SaveChanges();
 
-            operation.Data = "";
-            operation.IsSuccessfully = true;
-            return operation;
+                operation.Data = "";
+                operation.IsSuccessfully = true;
+                return operation;
+            }
+            catch(Exception ex)
+            {
+                UpdateLog($"(Register) {ex.Message}");
+                operation.IsSuccessfully = false;
+                return operation;
+            }
         }
         private Operation ToFire(Operation operation, Credential credential)
         {

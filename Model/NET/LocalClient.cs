@@ -47,7 +47,7 @@ namespace RealtorServer.Model.NET
         }
         public Boolean IsConnected
         {
-            get=> isConnected;
+            get => isConnected;
             private set
             {
                 isConnected = value;
@@ -73,8 +73,8 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     isConnected = true;
-                    using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100)) 
-                        RecieveMessages();
+                    using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100))
+                        ReceiveMessages();
                 }
                 catch (Exception ex)
                 {
@@ -95,7 +95,7 @@ namespace RealtorServer.Model.NET
             isConnected = false;
         }
 
-        private void RecieveMessages()
+        private void ReceiveMessages()
         {
             while (isConnected)
             {
@@ -119,8 +119,8 @@ namespace RealtorServer.Model.NET
                             Operation receivedOperation = JsonSerializer.Deserialize<Operation>(incomingMessage.ToString());
                             receivedOperation.IpAddress = IpAddress;
                             incomingOperations.Enqueue(receivedOperation);
+                            UpdateLog("Received" + incomingMessage.ToString());
                         }
-                        UpdateLog("Receive" + incomingMessage.ToString());
                     }
                     catch (Exception ex)
                     {

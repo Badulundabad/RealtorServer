@@ -9,6 +9,7 @@ using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using System.Threading;
+using RealtyModel.Model.Base;
 
 namespace RealtorServer.Model.NET
 {
@@ -34,8 +35,8 @@ namespace RealtorServer.Model.NET
             queueChecker.Elapsed += (o, e) => Handle();
             queueChecker.Start();
             UpdateLog("has ran");
-            
-            
+
+
             Clear();
             realtyContext.SaveChanges();
         }
@@ -93,39 +94,42 @@ namespace RealtorServer.Model.NET
                     HasExchange = false,
                     HouseNumber = 12
                 },
+                GeneralInfo = new BaseInfo()
+                {
+                    Ceiling = 10,
+                    Condition = "asd",
+                    Convenience = "asd",
+                    Description = "asd",
+                    General = 10,
+                    Heating = "asd",
+                    Kitchen = 12,
+                    Living = 12,
+                    RoomCount = 1,
+                    Water = "asd",
+                    Year = 12
+                },
                 Info = new FlatInfo()
                 {
                     Balcony = "asd",
                     Bath = "asd",
                     Bathroom = "asd",
-                    Ceiling = 10,
-                    Condition = "asd",
-                    Convenience = "asd",
-                    Description = "asd",
                     Floor = "asd",
                     Fund = "asd",
-                    General = 10,
                     HasChute = false,
                     HasElevator = false,
                     HasGarage = false,
                     HasImprovedLayout = false,
                     HasRenovation = false,
-                    Heating = "asd",
                     IsCorner = false,
                     IsPrivatised = false,
                     IsSeparated = false,
-                    Kitchen = 12,
                     Kvl = 12,
-                    Living = 12,
                     Loggia = "asd",
                     Material = "asd",
-                    RoomCount = 1,
                     Rooms = "asd",
                     Type = "asd",
                     TypeOfRooms = "asd",
-                    Water = "asd",
-                    Windows = "asd",
-                    Year = 12
+                    Windows = "asd"
                 },
                 Cost = new Cost()
                 {
@@ -381,7 +385,7 @@ namespace RealtorServer.Model.NET
                     }
                     if (operation.OperationParameters.HasLocationChanges)
                     {
-                        if(updFlat.Location.City.Id == 0)
+                        if (updFlat.Location.City.Id == 0)
                             dbFlat.Location.City = updFlat.Location.City;
                         else
                         {

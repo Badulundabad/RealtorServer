@@ -118,6 +118,11 @@ namespace RealtorServer.Model.NET
                 {
                     UpdateLog($"(RunUDPMarkerAsync) {ex.Message}");
                 }
+                finally
+                {
+                    socket.Dispose();
+                    socket.Close();
+                }
             });
         }
 

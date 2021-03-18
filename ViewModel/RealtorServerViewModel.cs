@@ -112,7 +112,7 @@ namespace RealtorServer.ViewModel
 
         private void UpdateLog(String text)
         {
-            File.AppendAllLines("log.txt", new List<String>() { DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}" });
+            File.AppendAllText("log.txt", DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}" );
 
             //После тестов удалить
             LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"Server {text}");
