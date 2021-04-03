@@ -40,11 +40,10 @@ namespace RealtorServer.ViewModel
 
         public RealtorServerViewModel()
         {
-
             Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, input);
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, input);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, input);
+            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, output);
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, output);
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, output);
 
             DispatcherTimer filterTask = new DispatcherTimer();
             filterTask.Interval = TimeSpan.FromMilliseconds(100);
@@ -83,7 +82,7 @@ namespace RealtorServer.ViewModel
             {
                 try
                 {
-                    if(operation.OperationParameters.Type == OperationType.Update)
+                    if (operation.OperationParameters.Type == OperationType.Update)
                     {
                         IdentityServer.IncomingQueue.Enqueue(operation);
                         RealtyServer.IncomingQueue.Enqueue(operation);
@@ -112,7 +111,7 @@ namespace RealtorServer.ViewModel
 
         private void UpdateLog(String text)
         {
-            File.AppendAllText("log.txt", DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}" );
+            File.AppendAllText("log.txt", DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}");
 
             //После тестов удалить
             LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"Server {text}");

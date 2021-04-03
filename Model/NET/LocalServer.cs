@@ -1,11 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Linq;
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -138,10 +135,10 @@ namespace RealtorServer.Model.NET
                     {
                         foreach (LocalClient client in clients)
                         {
-                            if (operation.IpAddress == client.IpAddress)
-                            {
+                            if (operation.IpAddress == "broadcast")
                                 client.SendQueue.Enqueue(operation);
-                            }
+                            else if (operation.IpAddress == client.IpAddress)
+                                client.SendQueue.Enqueue(operation);
                         }
                     }
                 }

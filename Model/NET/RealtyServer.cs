@@ -17,7 +17,6 @@ namespace RealtorServer.Model.NET
     {
         private System.Timers.Timer queueChecker = null;
         private RealtyContext realtyContext = new RealtyContext();
-        private AlbumContext albumContext = new AlbumContext();
 
         public RealtyServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
@@ -36,7 +35,6 @@ namespace RealtorServer.Model.NET
             queueChecker.Start();
             UpdateLog("has ran");
 
-
             Clear();
             realtyContext.SaveChanges();
         }
@@ -44,142 +42,6 @@ namespace RealtorServer.Model.NET
         {
             queueChecker.Stop();
             UpdateLog("has stopped");
-        }
-        private void Test()
-        {
-
-            Flat flat = new Flat()
-            {
-                Agent = "first attempt",
-                Id = 1,
-                AlbumId = 1,
-                CustomerId = 1,
-                LocationId = 1,
-                Album = new Album()
-                {
-                    Id = 1,
-                    Location = "asd",
-                    PhotoList = new byte[256],
-                    Preview = new byte[256]
-                },
-                Customer = new Customer()
-                {
-                    Id = 1,
-                    Name = "asd",
-                    PhoneNumbers = "asd"
-                },
-                Location = new Location()
-                {
-                    Id = 0,
-                    CityId = 1,
-                    DistrictId = 1,
-                    StreetId = 1,
-                    City = new City()
-                    {
-                        Id = 1,
-                        Name = "asd"
-                    },
-                    District = new District()
-                    {
-                        Id = 1,
-                        Name = "asd"
-                    },
-                    Street = new Street()
-                    {
-                        Id = 1,
-                        Name = "asd"
-                    },
-                    FlatNumber = 12,
-                    HasBanner = false,
-                    HasExchange = false,
-                    HouseNumber = 12
-                },
-                GeneralInfo = new BaseInfo()
-                {
-                    Ceiling = 10,
-                    Condition = "asd",
-                    Convenience = "asd",
-                    Description = "asd",
-                    General = 10,
-                    Heating = "asd",
-                    Kitchen = 12,
-                    Living = 12,
-                    RoomCount = 1,
-                    Water = "asd",
-                    Year = 12
-                },
-                Info = new FlatInfo()
-                {
-                    Balcony = "asd",
-                    Bath = "asd",
-                    Bathroom = "asd",
-                    Floor = "asd",
-                    Fund = "asd",
-                    HasChute = false,
-                    HasElevator = false,
-                    HasGarage = false,
-                    HasImprovedLayout = false,
-                    HasRenovation = false,
-                    IsCorner = false,
-                    IsPrivatised = false,
-                    IsSeparated = false,
-                    Kvl = 12,
-                    Loggia = "asd",
-                    Material = "asd",
-                    Rooms = "asd",
-                    Type = "asd",
-                    TypeOfRooms = "asd",
-                    Windows = "asd"
-                },
-                Cost = new Cost()
-                {
-                    Area = 10,
-                    HasMortgage = true,
-                    HasPercents = true,
-                    HasVAT = true,
-                    Price = 10
-                },
-                HasExclusive = true,
-                IsSold = false,
-            };
-            realtyContext.Flats.Local.Add(flat);
-            realtyContext.SaveChanges();
-
-            Album album = flat.Album;
-            Cost cost = flat.Cost;
-            Customer customer = flat.Customer;
-            FlatInfo info = flat.Info;
-            Location location = flat.Location;
-
-            Flat flat2 = realtyContext.Flats.Find(1);
-            flat2.Agent = "flat2";
-            flat2.Album = album;
-            flat2.Cost = cost;
-            flat2.Customer = customer;
-            flat2.Info = info;
-            flat2.Location = location;
-            realtyContext.Flats.Attach(flat2);
-            realtyContext.Entry(flat2).State = EntityState.Modified;
-            realtyContext.SaveChanges();
-
-            Flat flat3 = new Flat()
-            {
-                Id = 1,
-                AlbumId = 1,
-                CustomerId = 1,
-                LocationId = 1,
-                HasExclusive = false,
-                IsSold = false,
-                Agent = "flat3",
-                Album = album,
-                Cost = cost,
-                Customer = customer,
-                Info = info,
-                Location = location,
-            };
-            realtyContext.Flats.Attach(flat3);
-            realtyContext.Entry(flat3).State = EntityState.Modified;
-            realtyContext.SaveChanges();
         }
         private void Clear()
         {
@@ -200,7 +62,6 @@ namespace RealtorServer.Model.NET
             realtyContext.Streets.Local.Clear();
             realtyContext.SaveChanges();
         }
-
         private void Handle()
         {
             Operation newOperation = null;
@@ -262,10 +123,12 @@ namespace RealtorServer.Model.NET
             }
             finally
             {
-                if (newOperation != null) outcomingQueue.Enqueue(newOperation);
+                if (newOperation != null)
+                {
+                    outcomingQueue.Enqueue(newOperation);
+                }
             }
         }
-
 
         //There need to build some methods
         //Add an object
