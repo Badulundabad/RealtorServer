@@ -65,6 +65,7 @@ namespace RealtorServer.Model.NET
             SendQueue = new Queue<Operation>();
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
         }
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public async void ConnectAsync()
         {
@@ -88,11 +89,23 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
+        public Boolean CheckConnection()
+        {
+            try
+            {
+                if (socket.Poll(500000, SelectMode.SelectError))
+                    return false;
+                else return true;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
         public void Disconnect()
         {
-            SendQueue = new Queue<Operation>();
-            //Send a disconnect message
             isConnected = false;
+            SendQueue = new Queue<Operation>();
         }
 
         private void ReceiveMessages()
@@ -101,26 +114,12 @@ namespace RealtorServer.Model.NET
             {
                 if (socket.Poll(100000, SelectMode.SelectRead))
                 {
-                    Byte[] buffer = new Byte[1500];
-                    Int32 byteCount;
-                    StringBuilder incomingMessage = new StringBuilder();
 
                     try
                     {
-                        do
-                        {
-                            byteCount = socket.Receive(buffer);
-                            incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
-                        }
-                        while (socket.Available > 0);
-
-                        if (!string.IsNullOrWhiteSpace(incomingMessage.ToString()))
-                        {
-                            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(incomingMessage.ToString());
-                            receivedOperation.IpAddress = IpAddress;
-                            incomingOperations.Enqueue(receivedOperation);
-                            UpdateLog("Received" + incomingMessage.ToString());
-                        }
+                        String message = ReceiveMessage();
+                        if (!string.IsNullOrWhiteSpace(message))
+                            AddMessageToQueue(message);
                     }
                     catch (Exception ex)
                     {
@@ -129,6 +128,28 @@ namespace RealtorServer.Model.NET
                     }
                 }
             }
+        }
+
+        private String ReceiveMessage()
+        {
+            Byte[] buffer = new Byte[1500];
+            Int32 byteCount;
+            StringBuilder incomingMessage = new StringBuilder();
+            do
+            {
+                byteCount = socket.Receive(buffer);
+                incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
+            }
+            while (socket.Available > 0);
+
+            return incomingMessage.ToString();
+        }
+        private void AddMessageToQueue(String message)
+        {
+            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
+            receivedOperation.IpAddress = IpAddress;
+            incomingOperations.Enqueue(receivedOperation);
+            UpdateLog("Received" + message);
         }
         private void CheckOutQueue()
         {
@@ -151,23 +172,6 @@ namespace RealtorServer.Model.NET
                 }
             }
         }
-
-        //Maybe this need to delete
-        private void Send(Operation operation)
-        {
-            try
-            {
-                String json = JsonSerializer.Serialize<Operation>(operation);
-                Byte[] data = Encoding.UTF8.GetBytes(json);
-                socket.Send(data);
-            }
-            catch (Exception ex)
-            {
-                isConnected = false;
-                UpdateLog($"{ipAddress}(SendMessagesAsync) {ex.Message}");
-            }
-        }
-
         private void UpdateLog(String text)
         {
             dispatcher.BeginInvoke(new Action(() =>
@@ -182,6 +186,5 @@ namespace RealtorServer.Model.NET
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));
             }
         }
-        public event PropertyChangedEventHandler PropertyChanged;
     }
 }

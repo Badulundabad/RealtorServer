@@ -19,7 +19,7 @@ namespace RealtorServer.ViewModel
         #region Fields and Properties
         private Boolean isRunning = false;
         private Queue<Operation> output = new Queue<Operation>();
-        private Queue<Operation> input = new Queue<Operation>();
+        private DispatcherTimer filterTask = new DispatcherTimer();
 
         public Boolean IsRunning
         {
@@ -36,27 +36,22 @@ namespace RealtorServer.ViewModel
         public IdentityServer IdentityServer { get; private set; }
         public RealtyServer RealtyServer { get; private set; }
         public ObservableCollection<LogMessage> Log { get; private set; }
+        public event PropertyChangedEventHandler PropertyChanged;
         #endregion
 
         public RealtorServerViewModel()
         {
-            Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, output);
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, output);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, output);
-
-            DispatcherTimer filterTask = new DispatcherTimer();
-            filterTask.Interval = TimeSpan.FromMilliseconds(100);
-            filterTask.Tick += (o, e) => CheckQueue();
-
+            InitializeMembers();
             RunCommand = new CustomCommand((obj) =>
             {
+                Log.Clear();
                 IsRunning = true;
                 filterTask.Start();
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => IdentityServer.Run()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => RealtyServer.Run()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.PollClientsAsync()));
             });
             StopCommand = new CustomCommand((obj) =>
             {
@@ -65,13 +60,20 @@ namespace RealtorServer.ViewModel
                 Server.Stop();
                 IdentityServer.Stop();
                 RealtyServer.Stop();
-                Log.Clear();
             });
         }
 
+        private void InitializeMembers()
+        {
+            Log = new ObservableCollection<LogMessage>();
+            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, output);
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, output);
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, output);
+            filterTask.Interval = TimeSpan.FromMilliseconds(100);
+            filterTask.Tick += (o, e) => CheckQueue();
+        }
         private void CheckQueue()
         {
-            //UpdateLog("checking an incoming queue");
             while (Server.IncomingQueue.Count > 0)
             {
                 Operation operation = Server.IncomingQueue.Dequeue();
@@ -108,7 +110,6 @@ namespace RealtorServer.ViewModel
                 }
             }
         }
-
         private void UpdateLog(String text)
         {
             File.AppendAllText("log.txt", DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}");
@@ -120,8 +121,6 @@ namespace RealtorServer.ViewModel
                 Log.Add(logMessage);
             }));
         }
-
-        public event PropertyChangedEventHandler PropertyChanged;
         private void OnPropertyChanged([CallerMemberName] String prop = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,20 +38,13 @@ namespace RealtorServer.Model.NET
                     {
                         listeningSocket.Bind(serverAddress);
                         listeningSocket.Listen(10);
-                        Socket clientSocket;
                         using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 500))
                         {
                             UpdateLog("has ran");
                             while (IsRunning)
                             {
                                 if (listeningSocket.Poll(100000, SelectMode.SelectRead))
-                                {
-                                    clientSocket = listeningSocket.Accept();
-                                    var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-                                    client.ConnectAsync();
-                                    clients.Add(client);
-                                    UpdateLog("new client has connected");
-                                }
+                                    ConnectClient();
                             }
                         }
                     }
@@ -61,27 +55,8 @@ namespace RealtorServer.Model.NET
                 }
                 finally
                 {
-                    UpdateLog("is trying to stop");
-                    foreach (LocalClient client in clients)
-                    {
-                        client.Disconnect();
-                    }
-                    LocalClient[] clientArray = clients.ToArray();
-                    System.Timers.Timer timer = new System.Timers.Timer();
-                    timer.AutoReset = false;
-                    if (clients.Count == 0)
-                        timer.Interval = 100;
-                    else
-                        timer.Interval = 150 * clients.Count;
-                    timer.Elapsed += (o, e) =>
-                    {
-                        foreach (LocalClient client in clientArray)
-                        {
-                            clients.Remove(client);
-                        }
-                        UpdateLog("has stopped");
-                    };
-                    timer.Enabled = true;
+                    DisconnectAllClients();
+                    UpdateLog("has stopped");
                 }
             });
         }
@@ -122,12 +97,54 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
+        public async void PollClientsAsync()
+        {
+            await Task.Run(() =>
+            {
+                while (isRunning)
+                {
+                    if (clients.Count > 0)
+                    {
+                        LocalClient[] clientArray = clients.ToArray();
+                        foreach (LocalClient client in clientArray)
+                        {
+                            for (byte attempts = 0; attempts <= 4; attempts++)
+                            {
+                                if(client!=null && client.CheckConnection()) break;
+                                else if (attempts == 4) DisconnectClient(client);
+                                Thread.Sleep(500);
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
+        private void ConnectClient()
+        {
+            Socket clientSocket = listeningSocket.Accept();
+            var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
+            client.ConnectAsync();
+            clients.Add(client);
+            UpdateLog("new client has connected");
+        }
+        private void DisconnectClient(LocalClient client)
+        {
+            client.Disconnect();
+            clients.Remove(client);
+        }
+        private void DisconnectAllClients()
+        {
+            foreach (LocalClient client in clients)
+                client.Disconnect();
+            LocalClient[] clientArray = clients.ToArray();
+            foreach (LocalClient client in clientArray)
+                clients.Remove(client);
+        }
         private void CheckOutQueue()
         {
             try
             {
-                //UpdateLog("is checking a queue");
                 while (IsRunning && outcomingQueue.Count > 0)
                 {
                     Operation operation = outcomingQueue.Dequeue();

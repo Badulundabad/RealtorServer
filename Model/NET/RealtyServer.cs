@@ -130,12 +130,6 @@ namespace RealtorServer.Model.NET
             }
         }
 
-        //There need to build some methods
-        //Add an object
-        //Change an object
-        //Delete an object
-        //MAYBE Get an object
-        //Update on all clients
         private Operation AddFlat(Operation operation)
         {
             Flat newFlat = null;
