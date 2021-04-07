@@ -7,6 +7,7 @@ using System.Threading;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
+using NLog;
 
 namespace RealtorServer.Model.NET
 {
@@ -14,6 +15,7 @@ namespace RealtorServer.Model.NET
     {
         private CredentialContext credentialContext = new CredentialContext();
         private System.Timers.Timer queueChecker = null;
+        private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
@@ -35,11 +37,13 @@ namespace RealtorServer.Model.NET
                     Handle();
             };
             queueChecker.Start();
+            logger.Info("Identity server has ran");
             UpdateLog("has ran");
         }
         public override void Stop()
         {
             queueChecker.Stop();
+            logger.Info("Identity server has stopped");
             UpdateLog("has stopped");
         }
         public Boolean CheckAccess(String ipAddress, String token)
@@ -55,16 +59,13 @@ namespace RealtorServer.Model.NET
             try
             {
                 operation = IncomingQueue.Dequeue();
-                //Ищем совпадающий credential
                 Credential credential = FindMatchingCredential(operation.Name, operation.Data);
 
                 if (operation.OperationParameters.Type == OperationType.Login && credential != null)
                 {
                     if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
                         LogoutPrevious(credential);
-                    operation = this.Login(operation, credential);
-
-                    UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
+                    operation = Login(operation, credential);
                 }
                 else if (operation.OperationParameters.Type == OperationType.Update)
                 {
@@ -75,27 +76,17 @@ namespace RealtorServer.Model.NET
                     outcomingQueue.Enqueue(operation);
                 }
                 else if (operation.OperationParameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
-                {
-                    operation = this.Logout(operation, credential);
-                    UpdateLog($"{credential.Name} has logged out");
-                }
+                    operation = Logout(operation, credential);
                 else if (operation.OperationParameters.Type == OperationType.Register && credential == null)
                 {
                     if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
-                    {
                         operation = Register(operation);
-                        UpdateLog($"{operation.Name} has registered");
-                    }
                     else operation.IsSuccessfully = false;
                 }
                 else if (operation.OperationParameters.Type == OperationType.ToFire && credential != null)
                 {
-                    //Need a special action to fire a worker 
                     if (CheckAccess(operation.IpAddress, operation.Token))
-                    {
-                        operation = this.ToFire(operation, credential);
-                        UpdateLog($"{credential.Name} has fired");
-                    }
+                        operation = ToFire(operation, credential);
                     else operation.IsSuccessfully = false;
                 }
                 else operation.IsSuccessfully = false;
@@ -103,12 +94,12 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 operation.IsSuccessfully = false;
+                logger.Error($"Identity server(Handle) {ex.Message}");
                 UpdateLog($"(Handle) {ex.Message}");
             }
             finally
             {
                 outcomingQueue.Enqueue(operation);
-                UpdateLog("added a mes to the outQueue");
             }
         }
 
@@ -118,6 +109,8 @@ namespace RealtorServer.Model.NET
             credential.Token = GetToken();
             operation.Data = credential.Token;
             operation.IsSuccessfully = true;
+            logger.Info($"{operation.IpAddress} has logged in as {credential.Name}");
+            UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
             return operation;
         }
         private Operation Logout(Operation operation, Credential credential)
@@ -125,6 +118,8 @@ namespace RealtorServer.Model.NET
             credential.IpAddress = "";
             credential.Token = "";
             operation.IsSuccessfully = true;
+            logger.Info($"{credential.Name} has logged out");
+            UpdateLog($"{credential.Name} has logged out");
             return operation;
         }
         private void LogoutPrevious(Credential credential)
@@ -157,10 +152,13 @@ namespace RealtorServer.Model.NET
 
                 operation.Data = "";
                 operation.IsSuccessfully = true;
+                logger.Info($"{operation.Name} has registered");
+                UpdateLog($"{operation.Name} has registered");
                 return operation;
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
+                logger.Error($"Identity server(Register) {ex.Message}");
                 UpdateLog($"(Register) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;
@@ -171,6 +169,8 @@ namespace RealtorServer.Model.NET
             credentialContext.Credentials.Remove(credential);
             credentialContext.SaveChanges();
             operation.IsSuccessfully = true;
+            logger.Info($"{operation.Name} has fired");
+            UpdateLog($"{operation.Name} has fired");
             return operation;
         }
         private Credential FindMatchingCredential(String name, String password)

@@ -2,15 +2,14 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
-using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using RealtyModel.Model;
 using RealtyModel.Service;
 using RealtorServer.Model.NET;
-using System.Threading;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using NLog;
 
 namespace RealtorServer.ViewModel
 {
@@ -20,6 +19,7 @@ namespace RealtorServer.ViewModel
         private Boolean isRunning = false;
         private Queue<Operation> output = new Queue<Operation>();
         private DispatcherTimer filterTask = new DispatcherTimer();
+        private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public Boolean IsRunning
         {
@@ -104,7 +104,8 @@ namespace RealtorServer.ViewModel
                 }
                 catch (Exception ex)
                 {
-                    UpdateLog($"(Handle) {ex.Message}");
+                    logger.Error($"ViewModel(CheckQueue) {ex.Message}");
+                    UpdateLog($"(CheckQueue) {ex.Message}");
                     operation.IsSuccessfully = false;
                     output.Enqueue(operation);
                 }
@@ -112,8 +113,6 @@ namespace RealtorServer.ViewModel
         }
         private void UpdateLog(String text)
         {
-            File.AppendAllText("log.txt", DateTime.Now.ToString("dd:MM:yy hh:mm") + $"Server {text}");
-
             //После тестов удалить
             LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"Server {text}");
             Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>

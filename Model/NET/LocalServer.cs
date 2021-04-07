@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
+using NLog;
 
 namespace RealtorServer.Model.NET
 {
@@ -15,6 +16,8 @@ namespace RealtorServer.Model.NET
     {
         private Socket listeningSocket = null;
         private List<LocalClient> clients = new List<LocalClient>();
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+
         public ObservableCollection<Task> OnlineClients { get; private set; }
 
         public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
@@ -40,6 +43,7 @@ namespace RealtorServer.Model.NET
                         listeningSocket.Listen(10);
                         using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 500))
                         {
+                            logger.Info("Local server has ran");
                             UpdateLog("has ran");
                             while (IsRunning)
                             {
@@ -51,11 +55,13 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
+                    logger.Error($"Local server(RunAsync) {ex.Message}");
                     UpdateLog($"(RunAsync) {ex.Message}");
                 }
                 finally
                 {
                     DisconnectAllClients();
+                    logger.Info("Local server has stopped");
                     UpdateLog("has stopped");
                 }
             });
@@ -75,6 +81,8 @@ namespace RealtorServer.Model.NET
 
                         byte[] buffer = new byte[socket.ReceiveBufferSize];
                         EndPoint endPoint = new IPEndPoint(IPAddress.None, 0);
+
+                        logger.Info("UDP marker has ran");
                         while (IsRunning)
                         {
                             if (socket.Poll(1000000, SelectMode.SelectRead))
@@ -88,12 +96,14 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
+                    logger.Error($"Local server (RunUDPMarkerAsync) {ex.Message}");
                     UpdateLog($"(RunUDPMarkerAsync) {ex.Message}");
                 }
                 finally
                 {
                     socket.Dispose();
                     socket.Close();
+                    logger.Info("UDP marker has stopped");
                 }
             });
         }
@@ -101,21 +111,35 @@ namespace RealtorServer.Model.NET
         {
             await Task.Run(() =>
             {
-                while (isRunning)
+                try
                 {
-                    if (clients.Count > 0)
+                    logger.Info("Client polling has ran");
+                    while (isRunning)
                     {
-                        LocalClient[] clientArray = clients.ToArray();
-                        foreach (LocalClient client in clientArray)
+                        if (clients.Count > 0)
                         {
-                            for (byte attempts = 0; attempts <= 4; attempts++)
+                            LocalClient[] clientArray = clients.ToArray();
+                            foreach (LocalClient client in clientArray)
                             {
-                                if(client!=null && client.CheckConnection()) break;
-                                else if (attempts == 4) DisconnectClient(client);
-                                Thread.Sleep(500);
+                                for (byte attempts = 0; attempts <= 4; attempts++)
+                                {
+                                    if (client != null && client.CheckConnection()) break;
+                                    else if (attempts == 4) DisconnectClient(client);
+                                    Thread.Sleep(500);
+                                }
                             }
                         }
                     }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"Local server(PollClientsAsync) {ex.Message}");
+                    UpdateLog($"(PollClientsAsync) {ex.Message}");
+                }
+                finally
+                {
+                    logger.Info("Client polling has stopped");
+                    UpdateLog("Client polling has stopped");
                 }
             });
         }
@@ -126,7 +150,8 @@ namespace RealtorServer.Model.NET
             var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
             client.ConnectAsync();
             clients.Add(client);
-            UpdateLog("new client has connected");
+            logger.Info($"{client.IpAddress} has connected");
+            UpdateLog($"{client.IpAddress} has connected");
         }
         private void DisconnectClient(LocalClient client)
         {

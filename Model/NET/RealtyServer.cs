@@ -4,12 +4,10 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
 using System.Windows.Threading;
-using System.Data.Entity;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
-using System.Threading;
-using RealtyModel.Model.Base;
+using NLog;
 
 namespace RealtorServer.Model.NET
 {
@@ -17,6 +15,7 @@ namespace RealtorServer.Model.NET
     {
         private System.Timers.Timer queueChecker = null;
         private RealtyContext realtyContext = new RealtyContext();
+        private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public RealtyServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
         {
@@ -33,6 +32,7 @@ namespace RealtorServer.Model.NET
             queueChecker.AutoReset = true;
             queueChecker.Elapsed += (o, e) => Handle();
             queueChecker.Start();
+            logger.Info("Realty server has ran");
             UpdateLog("has ran");
 
             Clear();
@@ -41,6 +41,7 @@ namespace RealtorServer.Model.NET
         public override void Stop()
         {
             queueChecker.Stop();
+            logger.Info("Realty server has stopped");
             UpdateLog("has stopped");
         }
         private void Clear()
@@ -118,6 +119,7 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
+                logger.Error($"Realty server(Handle) {ex.Message}");
                 UpdateLog($"(Handle) {ex.Message}");
                 if (newOperation != null) newOperation.IsSuccessfully = false;
             }
@@ -144,6 +146,7 @@ namespace RealtorServer.Model.NET
 
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<Flat>(newFlat);
+                    logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
                     operation.OperationParameters.Type = OperationType.Update;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
@@ -154,7 +157,8 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
-                UpdateLog("(AddObject) " + ex.Message);
+                logger.Error($"Realty server(AddFlat) {ex.Message}");
+                UpdateLog($"(AddFlat) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;
             }
@@ -173,9 +177,10 @@ namespace RealtorServer.Model.NET
 
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<House>(newHouse);
+                    logger.Info($"{operation.IpAddress} has registered a house {newHouse.Location.City} {newHouse.Location.District} {newHouse.Location.Street} {newHouse.Location.HouseNumber}");
+                    operation.IsSuccessfully = true;
                     operation.OperationParameters.Type = OperationType.Update;
                     operation.IpAddress = "broadcast";
-                    operation.IsSuccessfully = true;
                 }
                 else operation.IsSuccessfully = false;
 
@@ -183,6 +188,7 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
+                logger.Error($"Realty server(AddHouse) {ex.Message}");
                 UpdateLog($"(AddObject) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;
@@ -202,6 +208,7 @@ namespace RealtorServer.Model.NET
                     realtyContext.SaveChanges();
 
                     operation.Data = JsonSerializer.Serialize<Flat>(updFlat);
+                    logger.Info($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
                     operation.OperationParameters.Type = OperationType.Update;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
@@ -212,7 +219,8 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
-                UpdateLog("(AddObject) " + ex.Message);
+                logger.Error($"Realty server(ChangeFlat) {ex.Message}");
+                UpdateLog("(ChangeFlat) " + ex.Message);
                 operation.IsSuccessfully = false;
                 return operation;
             }
@@ -275,7 +283,8 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
-                    UpdateLog($"(UpdateProperties) {ex.Message}");
+                    logger.Error($"Realty server(ChangeFlat) {ex.Message}");
+                    UpdateLog($"(ChangeFlat) {ex.Message}");
                     return false;
                 }
             }
@@ -293,6 +302,7 @@ namespace RealtorServer.Model.NET
                     realtyContext.SaveChanges();
 
                     operation.Data = JsonSerializer.Serialize<House>(updHouse);
+                    logger.Info($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
                     operation.OperationParameters.Type = OperationType.Update;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
@@ -303,6 +313,7 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
+                logger.Error($"Realty server(ChangeHouse) {ex.Message}");
                 UpdateLog("(AddObject) " + ex.Message);
                 operation.IsSuccessfully = false;
                 return operation;
@@ -366,7 +377,8 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
-                    UpdateLog($"(UpdateProperties) {ex.Message}");
+                    logger.Error($"Realty server(ChangeHouse-UpdateProperties) {ex.Message}");
+                    UpdateLog($"(ChangeHouse) {ex.Message}");
                     return false;
                 }
             }
@@ -380,6 +392,9 @@ namespace RealtorServer.Model.NET
                 {
                     realtyContext.Flats.Remove(dbFlat);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has removed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
+                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
                 else operation.IsSuccessfully = false;
@@ -387,7 +402,8 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
-                UpdateLog($"(RemoveHouse) {ex.Message}");
+                logger.Error($"Realty server(RemoveFlat) {ex.Message}");
+                UpdateLog($"(RemoveFlat) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;
             }
@@ -401,13 +417,18 @@ namespace RealtorServer.Model.NET
                 {
                     realtyContext.Houses.Remove(dbHouse);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has removed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
                     operation.IsSuccessfully = true;
+                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.IpAddress = "broadcast";
                 }
                 else operation.IsSuccessfully = false;
+              
                 return operation;
             }
             catch (Exception ex)
             {
+                logger.Error($"Realty server(RemoveHouse) {ex.Message}");
                 UpdateLog($"(RemoveHouse) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;

@@ -120,3 +120,7 @@ C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.CoreC
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.CopyComplete
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.pdb
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.dll
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\NLog.config
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\NLog.dll
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\NLog.xml
+C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer_Content.g.cs
