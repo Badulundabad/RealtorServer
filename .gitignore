@@ -1,0 +1,6 @@
+
+*.log
+.vs/RealtorServer/v16/.suo
+*.pdb
+*.pdb
+*.cache

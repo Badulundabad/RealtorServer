@@ -147,7 +147,7 @@ namespace RealtorServer.Model.NET
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<Flat>(newFlat);
                     logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Add;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -179,7 +179,7 @@ namespace RealtorServer.Model.NET
                     operation.Data = JsonSerializer.Serialize<House>(newHouse);
                     logger.Info($"{operation.IpAddress} has registered a house {newHouse.Location.City} {newHouse.Location.District} {newHouse.Location.Street} {newHouse.Location.HouseNumber}");
                     operation.IsSuccessfully = true;
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Add;
                     operation.IpAddress = "broadcast";
                 }
                 else operation.IsSuccessfully = false;
@@ -209,7 +209,7 @@ namespace RealtorServer.Model.NET
 
                     operation.Data = JsonSerializer.Serialize<Flat>(updFlat);
                     logger.Info($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Change;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -303,7 +303,7 @@ namespace RealtorServer.Model.NET
 
                     operation.Data = JsonSerializer.Serialize<House>(updHouse);
                     logger.Info($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Change;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -393,7 +393,7 @@ namespace RealtorServer.Model.NET
                     realtyContext.Flats.Remove(dbFlat);
                     realtyContext.SaveChanges();
                     logger.Info($"{operation.IpAddress} has removed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Remove;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -419,7 +419,7 @@ namespace RealtorServer.Model.NET
                     realtyContext.SaveChanges();
                     logger.Info($"{operation.IpAddress} has removed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
                     operation.IsSuccessfully = true;
-                    operation.OperationParameters.Type = OperationType.Update;
+                    operation.OperationParameters.Type = OperationType.Remove;
                     operation.IpAddress = "broadcast";
                 }
                 else operation.IsSuccessfully = false;

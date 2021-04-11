@@ -107,6 +107,51 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
+
+        private void ConnectClient()
+        {
+            Socket clientSocket = listeningSocket.Accept();
+            var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
+            client.ConnectAsync();
+            clients.Add(client);
+            logger.Info($"{client.IpAddress} has connected");
+            UpdateLog($"{client.IpAddress} has connected");
+        }
+        private void DisconnectAllClients()
+        {
+            foreach (LocalClient client in clients)
+                client.Disconnect();
+            LocalClient[] clientArray = clients.ToArray();
+            foreach (LocalClient client in clientArray)
+                clients.Remove(client);
+        }
+        private void CheckOutQueue()
+        {
+            try
+            {
+                while (IsRunning && outcomingQueue.Count > 0)
+                {
+                    Operation operation = outcomingQueue.Dequeue();
+                    if (operation != null)
+                    {
+                        foreach (LocalClient client in clients)
+                        {
+                            if (operation.IpAddress == "broadcast")
+                                client.SendQueue.Enqueue(operation);
+                            else if (operation.IpAddress == client.IpAddress)
+                                client.SendQueue.Enqueue(operation);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateLog($"(CheckOutQueue) {ex.Message}");
+            }
+        }
+
+
+        //ПРЕТЕНДЕНТЫ НА УДАЛЕНИЕ
         public async void PollClientsAsync()
         {
             await Task.Run(() =>
@@ -143,52 +188,10 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
-
-        private void ConnectClient()
-        {
-            Socket clientSocket = listeningSocket.Accept();
-            var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-            client.ConnectAsync();
-            clients.Add(client);
-            logger.Info($"{client.IpAddress} has connected");
-            UpdateLog($"{client.IpAddress} has connected");
-        }
         private void DisconnectClient(LocalClient client)
         {
             client.Disconnect();
             clients.Remove(client);
-        }
-        private void DisconnectAllClients()
-        {
-            foreach (LocalClient client in clients)
-                client.Disconnect();
-            LocalClient[] clientArray = clients.ToArray();
-            foreach (LocalClient client in clientArray)
-                clients.Remove(client);
-        }
-        private void CheckOutQueue()
-        {
-            try
-            {
-                while (IsRunning && outcomingQueue.Count > 0)
-                {
-                    Operation operation = outcomingQueue.Dequeue();
-                    if (operation != null)
-                    {
-                        foreach (LocalClient client in clients)
-                        {
-                            if (operation.IpAddress == "broadcast")
-                                client.SendQueue.Enqueue(operation);
-                            else if (operation.IpAddress == client.IpAddress)
-                                client.SendQueue.Enqueue(operation);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                UpdateLog($"(CheckOutQueue) {ex.Message}");
-            }
         }
     }
 }

@@ -93,19 +93,6 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
-        public Boolean CheckConnection()
-        {
-            try
-            {
-                if (socket.Poll(500000, SelectMode.SelectError))
-                    return false;
-                else return true;
-            }
-            catch (Exception)
-            {
-                return false;
-            }
-        }
         public void Disconnect()
         {
             isConnected = false;
@@ -118,35 +105,45 @@ namespace RealtorServer.Model.NET
             {
                 if (socket.Poll(100000, SelectMode.SelectRead))
                 {
+                    String message = "";
                     try
                     {
-                        String message = ReceiveMessage();
+                        message = ReceiveMessage();
                         if (!string.IsNullOrWhiteSpace(message))
                             AddMessageToQueue(message);
+                        else Disconnect();
                     }
                     catch (Exception ex)
                     {
                         isConnected = false;
-                        logger.Error($"{ipAddress}(ReceiveMessages) {ex.Message}");
-                        UpdateLog($"{ipAddress}(ReceiveMessages) {ex.Message}");
+                        logger.Error($"{ipAddress}(ReceiveMessages) {ex.Message} in {message}");
+                        UpdateLog($"(ReceiveMessages) {ex.Message}");
                     }
                 }
             }
         }
-
         private String ReceiveMessage()
         {
-            Byte[] buffer = new Byte[1500];
-            Int32 byteCount;
             StringBuilder incomingMessage = new StringBuilder();
-            do
+            try
             {
-                byteCount = socket.Receive(buffer);
-                incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
-            }
-            while (socket.Available > 0);
+                Byte[] buffer = new Byte[1500];
+                Int32 byteCount;
+                do
+                {
+                    byteCount = socket.Receive(buffer);
+                    incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
+                }
+                while (socket.Available > 0);
 
-            return incomingMessage.ToString();
+                return incomingMessage.ToString();
+            }
+            catch(Exception ex)
+            {
+                logger.Error($"{ipAddress}(ReceiveMessages) {ex.Message}");
+                UpdateLog($"(ReceiveMessages) {ex.Message}");
+                return null;
+            }
         }
         private void AddMessageToQueue(String message)
         {
@@ -191,6 +188,22 @@ namespace RealtorServer.Model.NET
             if (PropertyChanged != null)
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));
+            }
+        }
+
+
+        //ПРЕТЕНДЕНТЫ НА УДАЛЕНИЕ
+        public Boolean CheckConnection()
+        {
+            try
+            {
+                if (socket.Poll(500000, SelectMode.SelectError))
+                    return false;
+                else return true;
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
     }
