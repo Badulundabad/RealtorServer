@@ -143,9 +143,7 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                Credential credential = new Credential();
-                credential.Name = operation.Name;
-                credential.Password = operation.Data;
+                Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
                 credential.RegistrationDate = DateTime.Now;
                 credentialContext.Credentials.Local.Add(credential);
                 credentialContext.SaveChanges();

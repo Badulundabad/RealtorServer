@@ -8,6 +8,7 @@ using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using NLog;
+using RealtyModel.Model.Base;
 
 namespace RealtorServer.Model.NET
 {
@@ -35,7 +36,7 @@ namespace RealtorServer.Model.NET
             logger.Info("Realty server has ran");
             UpdateLog("has ran");
 
-            Clear();
+            DebugMethClear();
             realtyContext.SaveChanges();
         }
         public override void Stop()
@@ -44,7 +45,7 @@ namespace RealtorServer.Model.NET
             logger.Info("Realty server has stopped");
             UpdateLog("has stopped");
         }
-        private void Clear()
+        private void DebugMethClear()
         {
             realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
             realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
@@ -65,55 +66,24 @@ namespace RealtorServer.Model.NET
         }
         private void Handle()
         {
-            Operation newOperation = null;
+            Operation operation = null;
             try
             {
                 while (incomingQueue.Count > 0)
                 {
-                    newOperation = incomingQueue.Dequeue();
-                    if (newOperation != null)
+                    operation = incomingQueue.Dequeue();
+                    if (operation != null)
                     {
-                        switch (newOperation.OperationParameters.Type)
-                        {
-                            case OperationType.Add:
-                                {
-                                    if (newOperation.OperationParameters.Target == TargetType.Flat)
-                                        newOperation = AddFlat(newOperation);
-                                    else if (newOperation.OperationParameters.Target == TargetType.House)
-                                        newOperation = AddHouse(newOperation);
-                                    else newOperation.IsSuccessfully = false;
-                                    break;
-                                }
-                            case OperationType.Change:
-                                {
-                                    if (newOperation.OperationParameters.Target == TargetType.Flat)
-                                        newOperation = ChangeFlat(newOperation);
-                                    else if (newOperation.OperationParameters.Target == TargetType.House)
-                                        newOperation = ChangeHouse(newOperation);
-                                    else newOperation.IsSuccessfully = false;
-                                    break;
-                                }
-                            case OperationType.Remove:
-                                {
-                                    if (newOperation.OperationParameters.Target == TargetType.Flat)
-                                        newOperation = RemoveFlat(newOperation);
-                                    else if (newOperation.OperationParameters.Target == TargetType.House)
-                                        newOperation = RemoveHouse(newOperation);
-                                    else newOperation.IsSuccessfully = false;
-                                    break;
-                                }
-                            case OperationType.Update:
-                                {
-                                    if (newOperation.OperationParameters.Target == TargetType.All)
-                                        SendFullUpdate(newOperation);
-                                    break;
-                                }
-                            default:
-                                {
-                                    newOperation.IsSuccessfully = false;
-                                    break;
-                                }
-                        }
+                        OperationType type = operation.OperationParameters.Type;
+                        if (type == OperationType.Add)
+                            operation = AddObject(operation);
+                        else if (type == OperationType.Change)
+                            operation = ChangeObject(operation);
+                        else if (type == OperationType.Remove)
+                            operation = RemoveObject(operation);
+                        else if (type == OperationType.Update)
+                            operation = SendFullUpdate(operation);
+                        else operation.IsSuccessfully = false;
                     }
                 }
             }
@@ -121,38 +91,63 @@ namespace RealtorServer.Model.NET
             {
                 logger.Error($"Realty server(Handle) {ex.Message}");
                 UpdateLog($"(Handle) {ex.Message}");
-                if (newOperation != null) newOperation.IsSuccessfully = false;
+                if (operation != null)
+                    operation.IsSuccessfully = false;
             }
             finally
             {
-                if (newOperation != null)
-                {
-                    outcomingQueue.Enqueue(newOperation);
-                }
+                if (operation != null)
+                    outcomingQueue.Enqueue(operation);
             }
+        }
+
+        private Operation AddObject(Operation operation)
+        {
+            TargetType target = operation.OperationParameters.Target;
+            if (target == TargetType.Flat)
+                operation = AddFlat(operation);
+            else if (target == TargetType.House)
+                operation = AddHouse(operation);
+            return operation;
+        }
+        private Operation ChangeObject(Operation operation)
+        {
+            TargetType target = operation.OperationParameters.Target;
+            if (target == TargetType.Flat)
+                operation = ChangeFlat(operation);
+            else if (target == TargetType.House)
+                operation = ChangeHouse(operation);
+            return operation;
+        }
+        private Operation RemoveObject(Operation operation)
+        {
+            TargetType target = operation.OperationParameters.Target;
+            if (target == TargetType.Flat)
+                operation = RemoveFlat(operation);
+            else if (target == TargetType.House)
+                operation = RemoveHouse(operation);
+            return operation;
         }
 
         private Operation AddFlat(Operation operation)
         {
-            Flat newFlat = null;
             try
             {
-                newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
+                Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     //добавить в бд
                     realtyContext.Flats.Local.Add(newFlat);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
 
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<Flat>(newFlat);
-                    logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
-                    operation.OperationParameters.Type = OperationType.Add;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
-                else operation.IsSuccessfully = false;
-
+                else
+                    operation.IsSuccessfully = false;
                 return operation;
             }
             catch (Exception ex)
@@ -165,51 +160,46 @@ namespace RealtorServer.Model.NET
         }
         private Operation AddHouse(Operation operation)
         {
-            House newHouse = null;
             try
             {
-                newHouse = JsonSerializer.Deserialize<House>(operation.Data);
+                House newHouse = JsonSerializer.Deserialize<House>(operation.Data);
                 if (!FindDuplicate(TargetType.House, newHouse.Location))
                 {
                     //добавить в бд
                     realtyContext.Houses.Local.Add(newHouse);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has registered a house {newHouse.Location.City} {newHouse.Location.District} {newHouse.Location.Street} {newHouse.Location.HouseNumber}");
 
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<House>(newHouse);
-                    logger.Info($"{operation.IpAddress} has registered a house {newHouse.Location.City} {newHouse.Location.District} {newHouse.Location.Street} {newHouse.Location.HouseNumber}");
-                    operation.IsSuccessfully = true;
-                    operation.OperationParameters.Type = OperationType.Add;
                     operation.IpAddress = "broadcast";
+                    operation.IsSuccessfully = true;
                 }
-                else operation.IsSuccessfully = false;
-
+                else
+                    operation.IsSuccessfully = false;
                 return operation;
             }
             catch (Exception ex)
             {
                 logger.Error($"Realty server(AddHouse) {ex.Message}");
-                UpdateLog($"(AddObject) {ex.Message}");
+                UpdateLog($"(AddHouse) {ex.Message}");
                 operation.IsSuccessfully = false;
                 return operation;
             }
         }
         private Operation ChangeFlat(Operation operation)
         {
-            Flat updFlat = null;
-            Flat dbFlat = null;
             try
             {
-                updFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
-                dbFlat = realtyContext.Flats.Find(updFlat.Id);
-
-                if (dbFlat != null && updFlat != null && operation.Name == dbFlat.Agent && UpdateProperties())
+                Flat updFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
+                Flat dbFlat = realtyContext.Flats.Find(updFlat.Id);
+                if (dbFlat != null && updFlat != null && operation.Name == dbFlat.Agent)
                 {
+                    UpdateProperties(updFlat, dbFlat, operation);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
 
                     operation.Data = JsonSerializer.Serialize<Flat>(updFlat);
-                    logger.Info($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
-                    operation.OperationParameters.Type = OperationType.Change;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -224,86 +214,20 @@ namespace RealtorServer.Model.NET
                 operation.IsSuccessfully = false;
                 return operation;
             }
-            Boolean UpdateProperties()
-            {
-                try
-                {
-                    if (operation.OperationParameters.HasBaseChanges)
-                    {
-                        dbFlat.Info = updFlat.Info;
-                        dbFlat.Cost = updFlat.Cost;
-                        dbFlat.HasExclusive = updFlat.HasExclusive;
-                        dbFlat.IsSold = updFlat.IsSold;
-
-                        //TEMPORARY!!!!
-                        dbFlat.Agent = updFlat.Agent;
-                    }
-                    if (operation.OperationParameters.HasAlbumChanges)
-                    {
-                        dbFlat.Album.Preview = updFlat.Album.Preview;
-                        dbFlat.Album.PhotoList = updFlat.Album.PhotoList;
-                    }
-                    if (operation.OperationParameters.HasCustomerChanges)
-                    {
-                        dbFlat.Customer.Name = updFlat.Customer.Name;
-                        dbFlat.Customer.PhoneNumbers = updFlat.Customer.PhoneNumbers;
-                    }
-                    if (operation.OperationParameters.HasLocationChanges)
-                    {
-                        if (updFlat.Location.City.Id == 0)
-                            dbFlat.Location.City = updFlat.Location.City;
-                        else
-                        {
-                            dbFlat.Location.CityId = updFlat.Location.CityId;
-                            dbFlat.Location.City.Id = updFlat.Location.City.Id;
-                            dbFlat.Location.City.Name = updFlat.Location.City.Name;
-                        }
-                        if (updFlat.Location.District.Id == 0)
-                            dbFlat.Location.District = updFlat.Location.District;
-                        else
-                        {
-                            dbFlat.Location.DistrictId = updFlat.Location.DistrictId;
-                            dbFlat.Location.District.Id = updFlat.Location.District.Id;
-                            dbFlat.Location.District.Name = updFlat.Location.District.Name;
-                        }
-                        if (updFlat.Location.Street.Id == 0)
-                            dbFlat.Location.Street = updFlat.Location.Street;
-                        else
-                        {
-                            dbFlat.Location.StreetId = updFlat.Location.StreetId;
-                            dbFlat.Location.Street.Id = updFlat.Location.Street.Id;
-                            dbFlat.Location.Street.Name = updFlat.Location.Street.Name;
-                        }
-                        dbFlat.Location.HouseNumber = updFlat.Location.HouseNumber;
-                        dbFlat.Location.FlatNumber = updFlat.Location.FlatNumber;
-                        dbFlat.Location.HasBanner = updFlat.Location.HasBanner;
-                        dbFlat.Location.HasExchange = updFlat.Location.HasExchange;
-                    }
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    logger.Error($"Realty server(ChangeFlat) {ex.Message}");
-                    UpdateLog($"(ChangeFlat) {ex.Message}");
-                    return false;
-                }
-            }
         }
         private Operation ChangeHouse(Operation operation)
         {
-            House updHouse = null;
-            House dbHouse = null;
             try
             {
-                updHouse = JsonSerializer.Deserialize<House>(operation.Data);
-                dbHouse = realtyContext.Houses.Find(updHouse.Id);
-                if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent && UpdateProperties())
+                House updHouse = JsonSerializer.Deserialize<House>(operation.Data);
+                House dbHouse = realtyContext.Houses.Find(updHouse.Id);
+                if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent)
                 {
+                    UpdateProperties(updHouse, dbHouse, operation);
                     realtyContext.SaveChanges();
+                    logger.Info($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
 
                     operation.Data = JsonSerializer.Serialize<House>(updHouse);
-                    logger.Info($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
-                    operation.OperationParameters.Type = OperationType.Change;
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
                 }
@@ -317,70 +241,6 @@ namespace RealtorServer.Model.NET
                 UpdateLog("(AddObject) " + ex.Message);
                 operation.IsSuccessfully = false;
                 return operation;
-            }
-            Boolean UpdateProperties()
-            {
-                try
-                {
-                    if (operation.OperationParameters.HasBaseChanges)
-                    {
-                        dbHouse.Info = updHouse.Info;
-                        dbHouse.Cost = updHouse.Cost;
-                        dbHouse.HasExclusive = updHouse.HasExclusive;
-                        dbHouse.IsSold = updHouse.IsSold;
-
-                        //TEMPORARY!!!!
-                        dbHouse.Agent = updHouse.Agent;
-                    }
-                    if (operation.OperationParameters.HasAlbumChanges)
-                    {
-                        dbHouse.Album.Preview = updHouse.Album.Preview;
-                        dbHouse.Album.PhotoList = updHouse.Album.PhotoList;
-                    }
-                    if (operation.OperationParameters.HasCustomerChanges)
-                    {
-                        dbHouse.Customer.Name = updHouse.Customer.Name;
-                        dbHouse.Customer.PhoneNumbers = updHouse.Customer.PhoneNumbers;
-                    }
-                    if (operation.OperationParameters.HasLocationChanges)
-                    {
-                        if (updHouse.Location.City.Id == 0)
-                            dbHouse.Location.City = updHouse.Location.City;
-                        else
-                        {
-                            dbHouse.Location.CityId = updHouse.Location.CityId;
-                            dbHouse.Location.City.Id = updHouse.Location.City.Id;
-                            dbHouse.Location.City.Name = updHouse.Location.City.Name;
-                        }
-                        if (updHouse.Location.District.Id == 0)
-                            dbHouse.Location.District = updHouse.Location.District;
-                        else
-                        {
-                            dbHouse.Location.DistrictId = updHouse.Location.DistrictId;
-                            dbHouse.Location.District.Id = updHouse.Location.District.Id;
-                            dbHouse.Location.District.Name = updHouse.Location.District.Name;
-                        }
-                        if (updHouse.Location.Street.Id == 0)
-                            dbHouse.Location.Street = updHouse.Location.Street;
-                        else
-                        {
-                            dbHouse.Location.StreetId = updHouse.Location.StreetId;
-                            dbHouse.Location.Street.Id = updHouse.Location.Street.Id;
-                            dbHouse.Location.Street.Name = updHouse.Location.Street.Name;
-                        }
-                        dbHouse.Location.HouseNumber = updHouse.Location.HouseNumber;
-                        dbHouse.Location.FlatNumber = updHouse.Location.FlatNumber;
-                        dbHouse.Location.HasBanner = updHouse.Location.HasBanner;
-                        dbHouse.Location.HasExchange = updHouse.Location.HasExchange;
-                    }
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    logger.Error($"Realty server(ChangeHouse-UpdateProperties) {ex.Message}");
-                    UpdateLog($"(ChangeHouse) {ex.Message}");
-                    return false;
-                }
             }
         }
         private Operation RemoveFlat(Operation operation)
@@ -423,7 +283,7 @@ namespace RealtorServer.Model.NET
                     operation.IpAddress = "broadcast";
                 }
                 else operation.IsSuccessfully = false;
-              
+
                 return operation;
             }
             catch (Exception ex)
@@ -434,7 +294,72 @@ namespace RealtorServer.Model.NET
                 return operation;
             }
         }
-        private void SendFullUpdate(Operation operation)
+        
+        private void UpdateProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation)
+        {
+            if (operation.OperationParameters.HasBaseChanges)
+                UpdateBaseProperties(fromObject, toObject, operation.OperationParameters.Target);
+            if (operation.OperationParameters.HasAlbumChanges)
+                UpdateAlbum(fromObject, toObject);
+            if (operation.OperationParameters.HasCustomerChanges)
+                UpdateCustomer(fromObject, toObject);
+            if (operation.OperationParameters.HasLocationChanges)
+                UpdateLocation(fromObject, toObject, operation.OperationParameters.Target);
+        }
+        private void UpdateBaseProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, TargetType target)
+        {
+            if (target == TargetType.Flat)
+                ((Flat)toObject).Info = ((Flat)fromObject).Info;
+            else if (target == TargetType.House)
+                ((House)toObject).Info = ((House)fromObject).Info;
+            toObject.Cost = fromObject.Cost;
+            toObject.HasExclusive = fromObject.HasExclusive;
+            toObject.IsSold = fromObject.IsSold;
+        }
+        private void UpdateAlbum(BaseRealtorObject fromObject, BaseRealtorObject toObject)
+        {
+            toObject.Album.Preview = fromObject.Album.Preview;
+            toObject.Album.PhotoList = fromObject.Album.PhotoList;
+        }
+        private void UpdateCustomer(BaseRealtorObject fromObject, BaseRealtorObject toObject)
+        {
+            toObject.Customer.Name = fromObject.Customer.Name;
+            toObject.Customer.PhoneNumbers = fromObject.Customer.PhoneNumbers;
+        }
+        private void UpdateLocation(BaseRealtorObject fromObject, BaseRealtorObject toObject, TargetType type)
+        {
+            if (fromObject.Location.City.Id == 0)
+                toObject.Location.City = fromObject.Location.City;
+            else
+            {
+                toObject.Location.CityId = fromObject.Location.CityId;
+                toObject.Location.City.Id = fromObject.Location.City.Id;
+                toObject.Location.City.Name = fromObject.Location.City.Name;
+            }
+            if (fromObject.Location.District.Id == 0)
+                toObject.Location.District = fromObject.Location.District;
+            else
+            {
+                toObject.Location.DistrictId = fromObject.Location.DistrictId;
+                toObject.Location.District.Id = fromObject.Location.District.Id;
+                toObject.Location.District.Name = fromObject.Location.District.Name;
+            }
+            if (fromObject.Location.Street.Id == 0)
+                toObject.Location.Street = fromObject.Location.Street;
+            else
+            {
+                toObject.Location.StreetId = fromObject.Location.StreetId;
+                toObject.Location.Street.Id = fromObject.Location.Street.Id;
+                toObject.Location.Street.Name = fromObject.Location.Street.Name;
+            }
+            if (type == TargetType.Flat)
+                toObject.Location.FlatNumber = fromObject.Location.FlatNumber;
+            toObject.Location.HouseNumber = fromObject.Location.HouseNumber;
+            toObject.Location.HasBanner = fromObject.Location.HasBanner;
+            toObject.Location.HasExchange = fromObject.Location.HasExchange;
+        }
+        
+        private Operation SendFullUpdate(Operation operation)
         {
             //Send a list of customers
             Customer[] customers = realtyContext.Customers.Local.ToArray();
@@ -450,42 +375,32 @@ namespace RealtorServer.Model.NET
                 outcomingQueue.Enqueue(operation);
             }
             //Send a list of houses
+            return null;
         }
-        private Boolean FindDuplicate(TargetType targetType, Location location = null, Customer customer = null, Album album = null)
+        private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null, Album album = null)
         {
             Boolean result = true;
-            switch (targetType)
-            {
-                case TargetType.Flat:
-                    {
-                        if (realtyContext.Flats.Local.FirstOrDefault<Flat>(flat =>
-                            flat.Location.City == location.City
-                            && flat.Location.Street == location.Street
-                            && flat.Location.District == location.District
-                            && flat.Location.HouseNumber == location.HouseNumber
-                            && flat.Location.FlatNumber == location.FlatNumber) == null)
-                            result = false;
-                        break;
-                    }
-                case TargetType.House:
-                    {
-                        if (realtyContext.Houses.Local.First<House>(house =>
-                            house.Location.City == location.City &&
-                            house.Location.Street == location.Street &&
-                            house.Location.HouseNumber == location.HouseNumber &&
-                            house.Location.FlatNumber == location.FlatNumber) == null)
-                            result = false;
-                        break;
-                    }
-                case TargetType.Customer:
-                    {
-                        if (realtyContext.Customers.Local.First<Customer>(cus =>
-                            cus.Name == customer.Name &&
-                            cus.PhoneNumbers == customer.PhoneNumbers) == null)
-                            result = false;
-                        break;
-                    }
-            }
+            if (target == TargetType.Flat)
+                if (realtyContext.Flats.Local.FirstOrDefault<Flat>(flat =>
+                    flat.Location.City == location.City
+                    && flat.Location.Street == location.Street
+                    && flat.Location.District == location.District
+                    && flat.Location.HouseNumber == location.HouseNumber
+                    && flat.Location.FlatNumber == location.FlatNumber) == null)
+                    result = false;
+            if (target == TargetType.House)
+                if (realtyContext.Houses.Local.First<House>(house =>
+                    house.Location.City == location.City &&
+                    house.Location.Street == location.Street &&
+                    house.Location.HouseNumber == location.HouseNumber &&
+                    house.Location.FlatNumber == location.FlatNumber) == null)
+                    result = false;
+            if (target == TargetType.Customer)
+                if (realtyContext.Customers.Local.First<Customer>(cus =>
+                    cus.Name == customer.Name &&
+                    cus.PhoneNumbers == customer.PhoneNumbers) == null)
+                    result = false;
+
             return result;
         }
     }
