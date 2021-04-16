@@ -9,6 +9,8 @@ using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using NLog;
 using RealtyModel.Model.Base;
+using System.Windows;
+using System.Diagnostics;
 
 namespace RealtorServer.Model.NET
 {
@@ -147,13 +149,16 @@ namespace RealtorServer.Model.NET
                     operation.IsSuccessfully = true;
                 }
                 else
+                {
                     operation.IsSuccessfully = false;
+                }
                 return operation;
             }
             catch (Exception ex)
             {
                 logger.Error($"Realty server(AddFlat) {ex.Message}");
                 UpdateLog($"(AddFlat) {ex.Message}");
+                Debug.WriteLine(ex.InnerException);
                 operation.IsSuccessfully = false;
                 return operation;
             }
@@ -294,7 +299,7 @@ namespace RealtorServer.Model.NET
                 return operation;
             }
         }
-        
+
         private void UpdateProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation)
         {
             if (operation.OperationParameters.HasBaseChanges)
@@ -358,7 +363,7 @@ namespace RealtorServer.Model.NET
             toObject.Location.HasBanner = fromObject.Location.HasBanner;
             toObject.Location.HasExchange = fromObject.Location.HasExchange;
         }
-        
+
         private Operation SendFullUpdate(Operation operation)
         {
             //Send a list of customers
@@ -377,23 +382,31 @@ namespace RealtorServer.Model.NET
             //Send a list of houses
             return null;
         }
-        private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null, Album album = null)
+        private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null)
         {
             Boolean result = true;
             if (target == TargetType.Flat)
-                if (realtyContext.Flats.Local.FirstOrDefault<Flat>(flat =>
-                    flat.Location.City == location.City
-                    && flat.Location.Street == location.Street
-                    && flat.Location.District == location.District
-                    && flat.Location.HouseNumber == location.HouseNumber
-                    && flat.Location.FlatNumber == location.FlatNumber) == null)
+                if (realtyContext.Flats.Local.Count > 0)
+                {
+                    if (realtyContext.Flats.Local.FirstOrDefault<Flat>(flat =>
+                     flat.Location.City == location.City
+                     && flat.Location.Street == location.Street
+                     && flat.Location.District == location.District
+                     && flat.Location.HouseNumber == location.HouseNumber
+                     && flat.Location.FlatNumber == location.FlatNumber) == null)
+                    {
+                        result = false;
+                        MessageBox.Show("sdafas");
+                    }
+                }
+                else
                     result = false;
             if (target == TargetType.House)
-                if (realtyContext.Houses.Local.First<House>(house =>
-                    house.Location.City == location.City &&
-                    house.Location.Street == location.Street &&
-                    house.Location.HouseNumber == location.HouseNumber &&
-                    house.Location.FlatNumber == location.FlatNumber) == null)
+                if (realtyContext.Houses.Local.Count > 0 && realtyContext.Houses.Local.First<House>(house =>
+                     house.Location.City == location.City &&
+                     house.Location.Street == location.Street &&
+                     house.Location.HouseNumber == location.HouseNumber &&
+                     house.Location.FlatNumber == location.FlatNumber) == null)
                     result = false;
             if (target == TargetType.Customer)
                 if (realtyContext.Customers.Local.First<Customer>(cus =>
