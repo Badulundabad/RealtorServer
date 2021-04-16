@@ -79,35 +79,32 @@ namespace RealtorServer.ViewModel
                 if (operation != null)
                     Handle(operation);
             }
-            void Handle(Operation operation)
+        }
+        private void Handle(Operation operation)
+        {
+            try
             {
-                try
+                if (operation.OperationParameters.Type == OperationType.Update)
+                    RealtyServer.IncomingQueue.Enqueue(operation);
+
+                else if (operation.OperationParameters.Direction == OperationDirection.Identity)
+                    IdentityServer.IncomingQueue.Enqueue(operation);
+
+                else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                    RealtyServer.IncomingQueue.Enqueue(operation);
+
+                else
                 {
-                    if (operation.OperationParameters.Type == OperationType.Update)
-                    {
-                        IdentityServer.IncomingQueue.Enqueue(operation);
-                        RealtyServer.IncomingQueue.Enqueue(operation);
-                    }
-
-                    else if (operation.OperationParameters.Direction == OperationDirection.Identity)
-                        IdentityServer.IncomingQueue.Enqueue(operation);
-
-                    else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
-                        RealtyServer.IncomingQueue.Enqueue(operation);
-
-                    else
-                    {
-                        operation.IsSuccessfully = false;
-                        output.Enqueue(operation);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.Error($"ViewModel(CheckQueue) {ex.Message}");
-                    UpdateLog($"(CheckQueue) {ex.Message}");
                     operation.IsSuccessfully = false;
                     output.Enqueue(operation);
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"ViewModel(CheckQueue) {ex.Message}");
+                UpdateLog($"(CheckQueue) {ex.Message}");
+                operation.IsSuccessfully = false;
+                output.Enqueue(operation);
             }
         }
         private void UpdateLog(String text)

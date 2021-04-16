@@ -76,6 +76,7 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     isConnected = true;
+                    SendUpdate();
                     using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100))
                         ReceiveMessages();
                 }
@@ -99,6 +100,20 @@ namespace RealtorServer.Model.NET
             SendQueue = new Queue<Operation>();
         }
 
+        private void SendUpdate()
+        {
+            Operation update = new Operation()
+            {
+                IpAddress = IpAddress,
+                OperationParameters = new OperationParameters()
+                {
+                    Direction = OperationDirection.Realty,
+                    Type = OperationType.Update,
+                    Target = TargetType.Flat
+                }
+            };
+            incomingOperations.Enqueue(update);
+        }
         private void ReceiveMessages()
         {
             while (isConnected)

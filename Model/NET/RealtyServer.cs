@@ -11,6 +11,7 @@ using NLog;
 using RealtyModel.Model.Base;
 using System.Windows;
 using System.Diagnostics;
+using RandomFlatGenerator;
 
 namespace RealtorServer.Model.NET
 {
@@ -38,8 +39,8 @@ namespace RealtorServer.Model.NET
             logger.Info("Realty server has ran");
             UpdateLog("has ran");
 
-            DebugMethClear();
-            realtyContext.SaveChanges();
+            //DebugMethClear();
+            //realtyContext.SaveChanges();
         }
         public override void Stop()
         {
@@ -367,18 +368,22 @@ namespace RealtorServer.Model.NET
         private Operation SendFullUpdate(Operation operation)
         {
             //Send a list of customers
-            Customer[] customers = realtyContext.Customers.Local.ToArray();
-            operation.Data = JsonSerializer.Serialize(customers);
-            operation.OperationParameters.Target = TargetType.Customer;
-            outcomingQueue.Enqueue(operation);
+            //Customer[] customers = realtyContext.Customers.Local.ToArray();
+            //operation.Data = JsonSerializer.Serialize(customers);
+            //operation.OperationParameters.Target = TargetType.Customer;
+            //outcomingQueue.Enqueue(operation);
             //Send a list of flats
-            Flat[] flats = realtyContext.Flats.Local.ToArray();
-            operation.OperationParameters.Target = TargetType.Flat;
-            foreach (Flat flat in flats)
-            {
-                operation.Data = JsonSerializer.Serialize(flat);
-                outcomingQueue.Enqueue(operation);
-            }
+            //Flat[] flats = realtyContext.Flats.Local.ToArray();
+            //foreach (Flat flat in flats)
+            //{
+            //    operation.Data = JsonSerializer.Serialize(flat);
+            //    outcomingQueue.Enqueue(operation);
+            //}
+            FlatGenerator generator = new FlatGenerator();
+            Flat[] flats = generator.CreateFlatList(0, 1000).ToArray();
+            String json = JsonSerializer.Serialize<Flat[]>(flats);
+            operation.Data = json;
+            outcomingQueue.Enqueue(operation);
             //Send a list of houses
             return null;
         }
