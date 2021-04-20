@@ -76,7 +76,6 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     isConnected = true;
-                    SendUpdate();
                     using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100))
                         ReceiveMessages();
                 }
@@ -87,10 +86,10 @@ namespace RealtorServer.Model.NET
                 }
                 finally
                 {
-                    socket.Shutdown(SocketShutdown.Both);
-                    socket.Close();
                     logger.Info($"{IpAddress} has disconnected");
                     UpdateLog("has disconnected");
+                    socket.Shutdown(SocketShutdown.Both);
+                    socket.Close();
                 }
             });
         }
@@ -100,20 +99,6 @@ namespace RealtorServer.Model.NET
             SendQueue = new Queue<Operation>();
         }
 
-        private void SendUpdate()
-        {
-            Operation update = new Operation()
-            {
-                IpAddress = IpAddress,
-                OperationParameters = new OperationParameters()
-                {
-                    Direction = OperationDirection.Realty,
-                    Type = OperationType.Update,
-                    Target = TargetType.Flat
-                }
-            };
-            incomingOperations.Enqueue(update);
-        }
         private void ReceiveMessages()
         {
             while (isConnected)
@@ -203,22 +188,6 @@ namespace RealtorServer.Model.NET
             if (PropertyChanged != null)
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));
-            }
-        }
-
-
-        //ПРЕТЕНДЕНТЫ НА УДАЛЕНИЕ
-        public Boolean CheckConnection()
-        {
-            try
-            {
-                if (socket.Poll(500000, SelectMode.SelectError))
-                    return false;
-                else return true;
-            }
-            catch (Exception)
-            {
-                return false;
             }
         }
     }

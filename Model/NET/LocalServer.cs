@@ -149,49 +149,5 @@ namespace RealtorServer.Model.NET
                 UpdateLog($"(CheckOutQueue) {ex.Message}");
             }
         }
-
-
-        //ПРЕТЕНДЕНТЫ НА УДАЛЕНИЕ
-        public async void PollClientsAsync()
-        {
-            await Task.Run(() =>
-            {
-                try
-                {
-                    logger.Info("Client polling has ran");
-                    while (isRunning)
-                    {
-                        if (clients.Count > 0)
-                        {
-                            LocalClient[] clientArray = clients.ToArray();
-                            foreach (LocalClient client in clientArray)
-                            {
-                                for (byte attempts = 0; attempts <= 4; attempts++)
-                                {
-                                    if (client != null && client.CheckConnection()) break;
-                                    else if (attempts == 4) DisconnectClient(client);
-                                    Thread.Sleep(500);
-                                }
-                            }
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.Error($"Local server(PollClientsAsync) {ex.Message}");
-                    UpdateLog($"(PollClientsAsync) {ex.Message}");
-                }
-                finally
-                {
-                    logger.Info("Client polling has stopped");
-                    UpdateLog("Client polling has stopped");
-                }
-            });
-        }
-        private void DisconnectClient(LocalClient client)
-        {
-            client.Disconnect();
-            clients.Remove(client);
-        }
     }
 }

@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
-using System.Windows.Threading;
-using RealtorServer.Model.DataBase;
-using RealtyModel.Model;
-using RealtyModel.Model.Derived;
-using NLog;
-using RealtyModel.Model.Base;
 using System.Windows;
-using System.Diagnostics;
+using System.Windows.Threading;
+using NLog;
 using RandomFlatGenerator;
+using RealtyModel.Model;
+using RealtyModel.Model.Base;
+using RealtyModel.Model.Derived;
+using RealtorServer.Model.DataBase;
+using System.Threading.Tasks;
 
 namespace RealtorServer.Model.NET
 {
@@ -48,7 +48,7 @@ namespace RealtorServer.Model.NET
             logger.Info("Realty server has stopped");
             UpdateLog("has stopped");
         }
-        private void DebugMethClear()
+        private void ClearDB()
         {
             realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
             realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
@@ -85,7 +85,7 @@ namespace RealtorServer.Model.NET
                         else if (type == OperationType.Remove)
                             operation = RemoveObject(operation);
                         else if (type == OperationType.Update)
-                            operation = SendFullUpdate(operation);
+                            SendUpdate(operation);
                         else operation.IsSuccessfully = false;
                     }
                 }
@@ -151,6 +151,7 @@ namespace RealtorServer.Model.NET
                 }
                 else
                 {
+                    operation.Data = "";
                     operation.IsSuccessfully = false;
                 }
                 return operation;
@@ -159,7 +160,7 @@ namespace RealtorServer.Model.NET
             {
                 logger.Error($"Realty server(AddFlat) {ex.Message}");
                 UpdateLog($"(AddFlat) {ex.Message}");
-                Debug.WriteLine(ex.InnerException);
+                operation.Data = "";
                 operation.IsSuccessfully = false;
                 return operation;
             }
@@ -202,6 +203,7 @@ namespace RealtorServer.Model.NET
                 if (dbFlat != null && updFlat != null && operation.Name == dbFlat.Agent)
                 {
                     UpdateProperties(updFlat, dbFlat, operation);
+                    dbFlat.LastUpdateTime = DateTime.Now;
                     realtyContext.SaveChanges();
                     logger.Info($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
 
@@ -230,6 +232,7 @@ namespace RealtorServer.Model.NET
                 if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent)
                 {
                     UpdateProperties(updHouse, dbHouse, operation);
+                    dbHouse.LastUpdateTime = DateTime.Now;
                     realtyContext.SaveChanges();
                     logger.Info($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
 
@@ -300,6 +303,27 @@ namespace RealtorServer.Model.NET
                 return operation;
             }
         }
+        private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null)
+        {
+            if (target == TargetType.Flat)
+                return realtyContext.Flats.Local.Any(flat =>
+                                                     flat.Location.City == location.City &&
+                                                     flat.Location.Street == location.Street &&
+                                                     flat.Location.District == location.District &&
+                                                     flat.Location.HouseNumber == location.HouseNumber &&
+                                                     flat.Location.FlatNumber == location.FlatNumber);
+            else if (target == TargetType.House)
+                return realtyContext.Houses.Local.Any(house =>
+                                                      house.Location.City == location.City &&
+                                                      house.Location.Street == location.Street &&
+                                                      house.Location.HouseNumber == location.HouseNumber &&
+                                                      house.Location.FlatNumber == location.FlatNumber);
+            else if (target == TargetType.Customer)
+                return realtyContext.Customers.Local.Any(cus =>
+                                                         cus.Name == customer.Name &&
+                                                         cus.PhoneNumbers == customer.PhoneNumbers);
+            else throw new Exception("The target hasn't a right value");
+        }
 
         private void UpdateProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation)
         {
@@ -365,61 +389,287 @@ namespace RealtorServer.Model.NET
             toObject.Location.HasExchange = fromObject.Location.HasExchange;
         }
 
-        private Operation SendFullUpdate(Operation operation)
+        private void SendUpdate(Operation operation)
         {
-            //Send a list of customers
-            //Customer[] customers = realtyContext.Customers.Local.ToArray();
-            //operation.Data = JsonSerializer.Serialize(customers);
-            //operation.OperationParameters.Target = TargetType.Customer;
-            //outcomingQueue.Enqueue(operation);
-            //Send a list of flats
-            //Flat[] flats = realtyContext.Flats.Local.ToArray();
-            //foreach (Flat flat in flats)
-            //{
-            //    operation.Data = JsonSerializer.Serialize(flat);
-            //    outcomingQueue.Enqueue(operation);
-            //}
+            //SendLists(operation);
+            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
+            //Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
+            Boolean hasHouses = false;
+
+            if (operation.Data == "never")
+            {
+                SendAllObjects(operation);
+                //SendAllPhotosAsync(operation, hasFlats, hasHouses);
+            }
+            else
+            {
+                SendMissingObjects(operation);
+                SendMissingAlbumsAsync(operation, hasFlats, hasHouses);
+            }
+        }
+
+        private void SendLists(Operation operation)
+        {
+            if (realtyContext.Cities.Local.Count > 0)
+                SendCities(operation);
+            if (realtyContext.Districts.Local.Count > 0)
+                SendDistricts(operation);
+            if (realtyContext.Streets.Local.Count > 0)
+                SendStreets(operation);
+            if (realtyContext.Customers.Local.Count > 0)
+                SendCutomers(operation);
+        }
+        private void SendCities(Operation operation)
+        {
+            try
+            {
+                operation.OperationParameters.Target = TargetType.City;
+                operation.Data = JsonSerializer.Serialize(realtyContext.Cities.Local.ToArray());
+                operation.IsSuccessfully = true;
+            }
+            catch
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                outcomingQueue.Enqueue(operation);
+            }
+        }
+        private void SendDistricts(Operation operation)
+        {
+            try
+            {
+                operation.OperationParameters.Target = TargetType.District;
+                operation.Data = JsonSerializer.Serialize(realtyContext.Districts.Local.ToArray());
+                operation.IsSuccessfully = true;
+            }
+            catch
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                outcomingQueue.Enqueue(operation);
+            }
+        }
+        private void SendStreets(Operation operation)
+        {
+            try
+            {
+                operation.OperationParameters.Target = TargetType.Street;
+                operation.Data = JsonSerializer.Serialize(realtyContext.Streets.Local.ToArray());
+                operation.IsSuccessfully = true;
+            }
+            catch
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                outcomingQueue.Enqueue(operation);
+            }
+        }
+        private void SendCutomers(Operation operation)
+        {
+            try
+            {
+                operation.OperationParameters.Target = TargetType.Customer;
+                operation.Data = JsonSerializer.Serialize(realtyContext.Customers.Local.ToArray());
+                operation.IsSuccessfully = true;
+            }
+            catch
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                outcomingQueue.Enqueue(operation);
+            }
+        }
+
+        private void SendAllObjects(Operation operation)
+        {
+            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
+            Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
+            object[][] dbObjects = new object[2][];
+            if (hasFlats)
+            {
+                dbObjects[0] = realtyContext.Flats.AsNoTracking().ToArray();
+                foreach (Flat flat in dbObjects[0])
+                    flat.Album.PhotoList = null;
+            }
+            if (hasHouses)
+            {
+                dbObjects[1] = realtyContext.Houses.AsNoTracking().ToArray();
+                foreach (House house in dbObjects[1])
+                    house.Album.PhotoList = null;
+            }
+            if (hasFlats || hasHouses)
+            {
+                operation.Data = JsonSerializer.Serialize(dbObjects);
+                operation.IsSuccessfully = true;
+            }
+            else
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            operation.OperationParameters.Target = TargetType.All;
+            outcomingQueue.Enqueue(operation);
+        }
+        private void SendAllFlats(Operation operation)
+        {
+            Flat[] flats = realtyContext.Flats.AsNoTracking().ToArray();
+            foreach (Flat flat in flats)
+                flat.Album.PhotoList = null;
+            String dataJson = JsonSerializer.Serialize(flats);
+            operation.Data = dataJson;
+            operation.OperationParameters.Target = TargetType.Flat;
+            outcomingQueue.Enqueue(operation);
+        }
+        private void SendAllHouses(Operation operation)
+        {
+            House[] houses = realtyContext.Houses.AsNoTracking().ToArray();
+            foreach (House house in houses)
+                house.Album.PhotoList = null;
+            String dataJson = JsonSerializer.Serialize(houses);
+            operation.Data = dataJson;
+            operation.OperationParameters.Target = TargetType.House;
+            outcomingQueue.Enqueue(operation);
+        }
+        private async void SendAllPhotosAsync(Operation operation, Boolean hasFlats, Boolean hasHouses)
+        {
+            await Task.Run(() =>
+            {
+                if (hasFlats)
+                    foreach (Flat flat in realtyContext.Flats)
+                    {
+                        operation.Data = JsonSerializer.Serialize(flat.Album);
+                        outcomingQueue.Enqueue(operation);
+                    }
+                if (hasHouses)
+                    foreach (House house in realtyContext.Houses)
+                    {
+                        operation.Data = JsonSerializer.Serialize(house.Album);
+                        outcomingQueue.Enqueue(operation);
+                    }
+                SendUpdateCompleteMessage(operation);
+            });
+        }
+
+        private void SendMissingObjects(Operation operation)
+        {
+            DateTime lastUpdateTime = DateTime.Parse(operation.Data);
+            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
+            object[][] dbObjects = new object[2][];
+            if (hasFlats)
+            {
+                dbObjects[0] = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
+                foreach (Flat flat in dbObjects[0])
+                    flat.Album.PhotoList = null;
+            }
+            Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
+            if (hasHouses)
+            {
+                dbObjects[1] = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
+                foreach (House house in dbObjects[1])
+                    house.Album.PhotoList = null;
+            }
+            if (hasFlats || hasHouses)
+            {
+                operation.Data = JsonSerializer.Serialize(dbObjects);
+                operation.IsSuccessfully = true;
+            }
+            else
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+            }
+            operation.OperationParameters.Target = TargetType.All;
+            outcomingQueue.Enqueue(operation);
+        }
+        private void SendMissingFlats(Operation operation)
+        {
+            DateTime lastUpdateTime = DateTime.Parse(operation.Data);
+
+            Flat[] missingFlats = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
+            foreach (Flat flat in missingFlats)
+                flat.Album.PhotoList = null;
+
+            operation.Data = JsonSerializer.Serialize(missingFlats);
+            operation.OperationParameters.Target = TargetType.Flat;
+            outcomingQueue.Enqueue(operation);
+        }
+        private void SendMissingHouses(Operation operation)
+        {
+            DateTime lastUpdateTime = DateTime.Parse(operation.Data);
+
+            House[] missingHouses = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
+            foreach (House house in missingHouses)
+                house.Album.PhotoList = null;
+
+            operation.Data = JsonSerializer.Serialize(missingHouses);
+            operation.OperationParameters.Target = TargetType.House;
+            outcomingQueue.Enqueue(operation);
+        }
+        private async void SendMissingAlbumsAsync(Operation operation, Boolean hasFlats, Boolean hasHouses)
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    DateTime lastUpdateTime = DateTime.Parse(operation.Data);
+                    operation.OperationParameters.Target = TargetType.Album;
+
+                    if (hasFlats)
+                    {
+                        Flat[] missingFlats = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
+                        foreach (Flat flat in missingFlats)
+                        {
+                            operation.Data = JsonSerializer.Serialize(flat.Album);
+                            outcomingQueue.Enqueue(operation);
+                        }
+                    }
+                    if (hasHouses)
+                    {
+                        House[] missingHouses = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
+                        foreach (House house in missingHouses)
+                        {
+                            operation.Data = JsonSerializer.Serialize(house.Album);
+                            outcomingQueue.Enqueue(operation);
+                        }
+                    }
+
+                    SendUpdateCompleteMessage(operation);
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"Realty server(SendMissingAlbumsAsync) {ex.Message}");
+                }
+            });
+        }
+
+        private void SendUpdateCompleteMessage(Operation operation)
+        {
+            operation.Data = "Completed";
+            outcomingQueue.Enqueue(operation);
+        }
+
+
+        private Operation SendFullUpdateTEST(Operation operation)
+        {
             FlatGenerator generator = new FlatGenerator();
-            Flat[] flats = generator.CreateFlatList(0, 1000).ToArray();
+            Flat[] flats = generator.CreateFlatList(0, 3000).ToArray();
             String json = JsonSerializer.Serialize<Flat[]>(flats);
             operation.Data = json;
             outcomingQueue.Enqueue(operation);
             //Send a list of houses
             return null;
-        }
-        private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null)
-        {
-            Boolean result = true;
-            if (target == TargetType.Flat)
-                if (realtyContext.Flats.Local.Count > 0)
-                {
-                    if (realtyContext.Flats.Local.FirstOrDefault<Flat>(flat =>
-                     flat.Location.City == location.City
-                     && flat.Location.Street == location.Street
-                     && flat.Location.District == location.District
-                     && flat.Location.HouseNumber == location.HouseNumber
-                     && flat.Location.FlatNumber == location.FlatNumber) == null)
-                    {
-                        result = false;
-                        MessageBox.Show("sdafas");
-                    }
-                }
-                else
-                    result = false;
-            if (target == TargetType.House)
-                if (realtyContext.Houses.Local.Count > 0 && realtyContext.Houses.Local.First<House>(house =>
-                     house.Location.City == location.City &&
-                     house.Location.Street == location.Street &&
-                     house.Location.HouseNumber == location.HouseNumber &&
-                     house.Location.FlatNumber == location.FlatNumber) == null)
-                    result = false;
-            if (target == TargetType.Customer)
-                if (realtyContext.Customers.Local.First<Customer>(cus =>
-                    cus.Name == customer.Name &&
-                    cus.PhoneNumbers == customer.PhoneNumbers) == null)
-                    result = false;
-
-            return result;
         }
     }
 }
