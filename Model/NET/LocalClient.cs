@@ -13,6 +13,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
+using System.Windows;
 
 namespace RealtorServer.Model.NET
 {
@@ -20,13 +21,15 @@ namespace RealtorServer.Model.NET
     {
         #region Fields
         private String name = "";
-        private String ipAddress = "";
+        private String ipAddress = "none";
         private Boolean isConnected = false;
         private Socket socket = null;
+        private NetworkStream stream = null;
         private Dispatcher dispatcher = null;
         private Queue<Operation> incomingOperations = null;
         private ObservableCollection<LogMessage> log = null;
         private static Logger logger = LogManager.GetCurrentClassLogger();
+        public event PropertyChangedEventHandler PropertyChanged;
         #endregion
         #region Properties
         public String Name
@@ -55,7 +58,7 @@ namespace RealtorServer.Model.NET
                 isConnected = value;
             }
         }
-        public Queue<Operation> SendQueue { get; private set; }
+        public OperationQueue OutcomingOperations { get; private set; }
         #endregion
 
         public LocalClient(Dispatcher dispatcher, Socket socket, ObservableCollection<LogMessage> log, Queue<Operation> input)
@@ -64,20 +67,19 @@ namespace RealtorServer.Model.NET
             this.socket = socket;
             this.dispatcher = dispatcher;
             incomingOperations = input;
-            SendQueue = new Queue<Operation>();
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
         }
-        public event PropertyChangedEventHandler PropertyChanged;
 
-        public async void ConnectAsync()
+        public async void RunAsync()
         {
             await Task.Run(() =>
             {
+                OutcomingOperations = new OperationQueue();
+                stream = new NetworkStream(socket);
+                isConnected = true;
                 try
                 {
-                    isConnected = true;
-                    using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 100))
-                        ReceiveMessages();
+                    ReceiveMessages();
                 }
                 catch (Exception ex)
                 {
@@ -96,53 +98,39 @@ namespace RealtorServer.Model.NET
         public void Disconnect()
         {
             isConnected = false;
-            SendQueue = new Queue<Operation>();
         }
 
-        private void ReceiveMessages()
+        private void ReceiveOperations()
         {
             while (isConnected)
             {
-                if (socket.Poll(100000, SelectMode.SelectRead))
+                if (stream.DataAvailable)
                 {
-                    String message = "";
                     try
                     {
-                        message = ReceiveMessage();
-                        if (!string.IsNullOrWhiteSpace(message))
-                            AddMessageToQueue(message);
-                        else Disconnect();
+                        StringBuilder response = new StringBuilder();
+                        do
+                        {
+                            Byte[] buffer = new Byte[1024];
+                            try
+                            {
+                                Int32 byteCount = stream.Read(buffer, 0, buffer.Length);
+                                String data = Encoding.UTF8.GetString(buffer);
+                                response.Append(data, 0, byteCount);
+                            }
+                            catch (Exception ex)
+                            {
+                                MessageBox.Show($"(Receive-do-while)\n{ex.Message}\n{buffer.Length}");
+                            }
+                        }
+                        while (stream.DataAvailable);
+                        AddMessageToQueue(response.ToString());
                     }
                     catch (Exception ex)
                     {
-                        isConnected = false;
-                        logger.Error($"{ipAddress}(ReceiveMessages) {ex.Message} in {message}");
-                        UpdateLog($"(ReceiveMessages) {ex.Message}");
+                        MessageBox.Show($"(Receive) {ex.Message}");
                     }
                 }
-            }
-        }
-        private String ReceiveMessage()
-        {
-            StringBuilder incomingMessage = new StringBuilder();
-            try
-            {
-                Byte[] buffer = new Byte[1500];
-                Int32 byteCount;
-                do
-                {
-                    byteCount = socket.Receive(buffer);
-                    incomingMessage.Append(Encoding.UTF8.GetString(buffer), 0, byteCount);
-                }
-                while (socket.Available > 0);
-
-                return incomingMessage.ToString();
-            }
-            catch(Exception ex)
-            {
-                logger.Error($"{ipAddress}(ReceiveMessages) {ex.Message}");
-                UpdateLog($"(ReceiveMessages) {ex.Message}");
-                return null;
             }
         }
         private void AddMessageToQueue(String message)
@@ -155,16 +143,17 @@ namespace RealtorServer.Model.NET
         }
         private void CheckOutQueue()
         {
-            while (isConnected && SendQueue.Count > 0)
+            while (isConnected && OutcomingOperations.Count > 0)
             {
                 try
                 {
-                    Operation operation = SendQueue.Dequeue();
+                    Operation operation = OutcomingOperations.Dequeue();
                     if (operation != null)
                     {
-                        String json = JsonSerializer.Serialize<Operation>(operation);
-                        Byte[] data = Encoding.UTF8.GetBytes(json);
-                        socket.Send(data);
+                        String json = JsonSerializer.Serialize(operation);
+                        byte[] data = Encoding.UTF8.GetBytes(json);
+                        stream.Write(data, 0, data.Length);
+
                         logger.Info($"{IpAddress} sent {json}");
                         UpdateLog($"sent {json}");
                     }

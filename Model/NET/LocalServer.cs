@@ -112,7 +112,7 @@ namespace RealtorServer.Model.NET
         {
             Socket clientSocket = listeningSocket.Accept();
             var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-            client.ConnectAsync();
+            client.RunAsync();
             clients.Add(client);
             logger.Info($"{client.IpAddress} has connected");
             UpdateLog($"{client.IpAddress} has connected");
@@ -137,9 +137,9 @@ namespace RealtorServer.Model.NET
                         foreach (LocalClient client in clients)
                         {
                             if (operation.IpAddress == "broadcast")
-                                client.SendQueue.Enqueue(operation);
+                                client.OutcomingOperations.Enqueue(operation);
                             else if (operation.IpAddress == client.IpAddress)
-                                client.SendQueue.Enqueue(operation);
+                                client.OutcomingOperations.Enqueue(operation);
                         }
                     }
                 }

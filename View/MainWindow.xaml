@@ -18,8 +18,6 @@
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="{Binding DateTime}"/>
-                <TextBlock Text="{Binding IpAddress}" 
-                           Grid.Column="1"/>
                 <TextBlock Text="{Binding Text}" 
                            Grid.Column="2"/>
             </Grid>

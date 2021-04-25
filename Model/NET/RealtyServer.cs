@@ -12,6 +12,7 @@ using RealtyModel.Model.Base;
 using RealtyModel.Model.Derived;
 using RealtorServer.Model.DataBase;
 using System.Threading.Tasks;
+using System.Text;
 
 namespace RealtorServer.Model.NET
 {
@@ -32,13 +33,13 @@ namespace RealtorServer.Model.NET
         public void Run()
         {
             queueChecker = new System.Timers.Timer();
-            queueChecker.Interval = 100;
+            queueChecker.Interval = 10;
             queueChecker.AutoReset = true;
             queueChecker.Elapsed += (o, e) => Handle();
             queueChecker.Start();
             logger.Info("Realty server has ran");
             UpdateLog("has ran");
-
+            SendUpdate(new Operation());
             //DebugMethClear();
             //realtyContext.SaveChanges();
         }
@@ -69,38 +70,21 @@ namespace RealtorServer.Model.NET
         }
         private void Handle()
         {
-            Operation operation = null;
-            try
+            while (incomingQueue.Count > 0)
             {
-                while (incomingQueue.Count > 0)
+                Operation operation = incomingQueue.Dequeue();
+                if (operation != null)
                 {
-                    operation = incomingQueue.Dequeue();
-                    if (operation != null)
-                    {
-                        OperationType type = operation.OperationParameters.Type;
-                        if (type == OperationType.Add)
-                            operation = AddObject(operation);
-                        else if (type == OperationType.Change)
-                            operation = ChangeObject(operation);
-                        else if (type == OperationType.Remove)
-                            operation = RemoveObject(operation);
-                        else if (type == OperationType.Update)
-                            SendUpdate(operation);
-                        else operation.IsSuccessfully = false;
-                    }
+                    OperationType type = operation.OperationParameters.Type;
+                    if (type == OperationType.Add)
+                        operation = AddObject(operation);
+                    else if (type == OperationType.Change)
+                        operation = ChangeObject(operation);
+                    else if (type == OperationType.Remove)
+                        operation = RemoveObject(operation);
+                    else if (type == OperationType.Update)
+                        SendUpdate(operation);
                 }
-            }
-            catch (Exception ex)
-            {
-                logger.Error($"Realty server(Handle) {ex.Message}");
-                UpdateLog($"(Handle) {ex.Message}");
-                if (operation != null)
-                    operation.IsSuccessfully = false;
-            }
-            finally
-            {
-                if (operation != null)
-                    outcomingQueue.Enqueue(operation);
             }
         }
 
@@ -391,21 +375,31 @@ namespace RealtorServer.Model.NET
 
         private void SendUpdate(Operation operation)
         {
+            FlatGenerator generator = new FlatGenerator();
+            Flat[] flats = generator.CreateFlatList(0, 10000).ToArray();
+            operation.OperationParameters.Type = OperationType.Update;
+            operation.Data = JsonSerializer.Serialize(flats);
+            outcomingQueue.Enqueue(operation);
+
+            //operation.IsSuccessfully = true;
+            //operation.Data = json;
+            //outcomingQueue.Enqueue(operation);
+
             //SendLists(operation);
             Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
             //Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
             Boolean hasHouses = false;
 
-            if (operation.Data == "never")
-            {
-                SendAllObjects(operation);
-                //SendAllPhotosAsync(operation, hasFlats, hasHouses);
-            }
-            else
-            {
-                SendMissingObjects(operation);
-                SendMissingAlbumsAsync(operation, hasFlats, hasHouses);
-            }
+            //if (operation.Data == "never")
+            //{
+            //    SendAllObjects(operation);
+            //    //SendAllPhotosAsync(operation, hasFlats, hasHouses);
+            //}
+            //else
+            //{
+            //    SendMissingObjects(operation);
+            //    SendMissingAlbumsAsync(operation, hasFlats, hasHouses);
+            //}
         }
 
         private void SendLists(Operation operation)
