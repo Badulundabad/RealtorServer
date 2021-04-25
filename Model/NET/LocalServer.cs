@@ -112,10 +112,25 @@ namespace RealtorServer.Model.NET
         {
             Socket clientSocket = listeningSocket.Accept();
             var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-            client.RunAsync();
+            client.ReceiveDataAsync();
             clients.Add(client);
             logger.Info($"{client.IpAddress} has connected");
             UpdateLog($"{client.IpAddress} has connected");
+        }
+        public void DisconnectClient(String ipAddress)
+        {
+            LocalClient disconnected = null;
+            foreach(LocalClient client in clients)
+            {
+                if (client.IpAddress == ipAddress)
+                {
+                    client.Disconnect();
+                    disconnected = client;
+                    break;
+                }
+            }
+            if (disconnected != null)
+                clients.Remove(disconnected);
         }
         private void DisconnectAllClients()
         {

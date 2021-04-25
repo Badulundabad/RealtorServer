@@ -84,7 +84,9 @@ namespace RealtorServer.ViewModel
         {
             try
             {
-                if (operation.OperationParameters.Type == OperationType.Update)
+                if (operation.Data == "0x00")
+                    Server.DisconnectClient(operation.IpAddress);
+                else if (operation.OperationParameters.Type == OperationType.Update)
                     RealtyServer.IncomingQueue.Enqueue(operation);
 
                 else if (operation.OperationParameters.Direction == OperationDirection.Identity)
@@ -92,7 +94,6 @@ namespace RealtorServer.ViewModel
 
                 else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
                     RealtyServer.IncomingQueue.Enqueue(operation);
-
                 else
                 {
                     operation.IsSuccessfully = false;
