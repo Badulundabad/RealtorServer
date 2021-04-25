@@ -112,7 +112,8 @@ namespace RealtorServer.Model.NET
         {
             Socket clientSocket = listeningSocket.Accept();
             var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-            client.ReceiveDataAsync();
+            client.ReceiveOverSocketAsync();
+            //client.ReceiveOverStreamAsync();
             clients.Add(client);
             logger.Info($"{client.IpAddress} has connected");
             UpdateLog($"{client.IpAddress} has connected");

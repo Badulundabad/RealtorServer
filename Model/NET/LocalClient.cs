@@ -20,7 +20,8 @@ namespace RealtorServer.Model.NET
     public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
-        private object sendLocker = new object();
+        private object streamSendLocker = new object();
+        private object socketSendLocker = new object();
         private String name = "";
         private String ipAddress = "none";
         private Boolean isConnected = false;
@@ -71,10 +72,11 @@ namespace RealtorServer.Model.NET
             stream = new NetworkStream(socket);
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
             OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => SendNext();
+            OutcomingOperations.Enqueued += (s, e) => SendOverSocket();
+            //OutcomingOperations.Enqueued += (s, e) => SendOverStream();
         }
 
-        public async void ReceiveDataAsync()
+        public async void ReceiveOverStreamAsync()
         {
             await Task.Run(() =>
             {
@@ -88,7 +90,7 @@ namespace RealtorServer.Model.NET
                             StringBuilder response = new StringBuilder();
                             do
                             {
-                                Byte[] buffer = new Byte[1024];
+                                Byte[] buffer = new Byte[4096];
                                 try
                                 {
                                     Int32 byteCount = stream.Read(buffer, 0, buffer.Length);
@@ -118,17 +120,9 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
-        private void GetOperation(String message)
+        private void SendOverStream()
         {
-            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-            receivedOperation.IpAddress = IpAddress;
-            incomingOperations.Enqueue(receivedOperation);
-            logger.Info($"{IpAddress} received {message}");
-            UpdateLog($"received {message}");
-        }
-        private void SendNext()
-        {
-            lock (sendLocker)
+            lock (streamSendLocker)
             {
                 try
                 {
@@ -145,6 +139,71 @@ namespace RealtorServer.Model.NET
                     UpdateLog($"(SendMessagesAsync) {ex.Message}");
                 }
             }
+        }
+        public async void ReceiveOverSocketAsync()
+        {
+            await Task.Run(() =>
+            {
+                IsConnected = true;
+                try
+                {
+                    while (IsConnected)
+                    {
+                        if (socket.Poll(100000, SelectMode.SelectRead))
+                        {
+                            StringBuilder response = new StringBuilder();
+                            do
+                            {
+                                Byte[] buffer = new Byte[1024];
+                                Int32 byteCount = socket.Receive(buffer);
+                                String data = Encoding.UTF8.GetString(buffer);
+                                response.Append(data, 0, byteCount);
+                            }
+                            while (socket.Available > 0);
+                            GetOperation(response.ToString());
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
+                    UpdateLog($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
+                }
+                finally
+                {
+                    logger.Info($"{IpAddress} has disconnected");
+                    UpdateLog($"{IpAddress} has disconnected");
+                }
+            });
+        }
+        private void SendOverSocket()
+        {
+            lock (socketSendLocker)
+            {
+                try
+                {
+                    Operation operation = OutcomingOperations.Dequeue();
+                    String json = JsonSerializer.Serialize(operation);
+                    byte[] data = Encoding.UTF8.GetBytes(json);
+                    socket.Send(data);
+                    logger.Info($"{IpAddress} sent {json}");
+                    UpdateLog($"sent {json}");
+                }
+                catch (Exception ex)
+                {
+                    logger.Error($"{ipAddress}(SendMessagesAsync) {ex.Message}");
+                    UpdateLog($"(SendMessagesAsync) {ex.Message}");
+                }
+            }
+        }
+
+        private void GetOperation(String message)
+        {
+            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
+            receivedOperation.IpAddress = IpAddress;
+            incomingOperations.Enqueue(receivedOperation);
+            logger.Info($"{IpAddress} received {message}");
+            UpdateLog($"received {message}");
         }
 
         public void Disconnect()
