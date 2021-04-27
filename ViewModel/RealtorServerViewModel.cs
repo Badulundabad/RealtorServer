@@ -52,6 +52,7 @@ namespace RealtorServer.ViewModel
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
             });
+            RunCommand.Execute(new object());
             StopCommand = new CustomCommand((obj) =>
             {
                 IsRunning = false;

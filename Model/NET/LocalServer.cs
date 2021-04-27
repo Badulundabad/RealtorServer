@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
+using System.Globalization;
 
 namespace RealtorServer.Model.NET
 {
@@ -112,8 +113,8 @@ namespace RealtorServer.Model.NET
         {
             Socket clientSocket = listeningSocket.Accept();
             var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
-            client.ReceiveOverSocketAsync();
-            //client.ReceiveOverStreamAsync();
+            //client.ReceiveOverSocketAsync();
+            client.ReceiveOverStreamAsync();
             clients.Add(client);
             logger.Info($"{client.IpAddress} has connected");
             UpdateLog($"{client.IpAddress} has connected");

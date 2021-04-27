@@ -14,6 +14,7 @@ using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
 using System.Windows;
+using System.Diagnostics;
 
 namespace RealtorServer.Model.NET
 {
@@ -72,8 +73,8 @@ namespace RealtorServer.Model.NET
             stream = new NetworkStream(socket);
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
             OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => SendOverSocket();
-            //OutcomingOperations.Enqueued += (s, e) => SendOverStream();
+            //OutcomingOperations.Enqueued += (s, e) => SendOverSocket();
+            OutcomingOperations.Enqueued += (s, e) => SendOverStream();
         }
 
         public async void ReceiveOverStreamAsync()
@@ -130,6 +131,7 @@ namespace RealtorServer.Model.NET
                     String json = JsonSerializer.Serialize(operation);
                     byte[] data = Encoding.UTF8.GetBytes(json);
                     stream.Write(data, 0, data.Length);
+                    Debug.WriteLine(data.Length);
                     logger.Info($"{IpAddress} sent {json}");
                     UpdateLog($"sent {json}");
                 }
@@ -185,8 +187,10 @@ namespace RealtorServer.Model.NET
                     Operation operation = OutcomingOperations.Dequeue();
                     String json = JsonSerializer.Serialize(operation);
                     byte[] data = Encoding.UTF8.GetBytes(json);
-                    socket.Send(data);
+                    Int32 count = socket.Send(data);
                     logger.Info($"{IpAddress} sent {json}");
+                    Debug.WriteLine(data.Length);
+                    Debug.WriteLine(count);
                     UpdateLog($"sent {json}");
                 }
                 catch (Exception ex)

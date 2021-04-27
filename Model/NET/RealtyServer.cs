@@ -13,6 +13,7 @@ using RealtyModel.Model.Derived;
 using RealtorServer.Model.DataBase;
 using System.Threading.Tasks;
 using System.Text;
+using System.Globalization;
 
 namespace RealtorServer.Model.NET
 {
@@ -39,9 +40,7 @@ namespace RealtorServer.Model.NET
             queueChecker.Start();
             logger.Info("Realty server has ran");
             UpdateLog("has ran");
-            SendUpdate(new Operation());
             //DebugMethClear();
-            //realtyContext.SaveChanges();
         }
         public override void Stop()
         {
@@ -375,31 +374,16 @@ namespace RealtorServer.Model.NET
 
         private void SendUpdate(Operation operation)
         {
-            FlatGenerator generator = new FlatGenerator();
-            Flat[] flats = generator.CreateFlatList(0, 10000).ToArray();
-            operation.OperationParameters.Type = OperationType.Update;
-            operation.Data = JsonSerializer.Serialize(flats);
-            outcomingQueue.Enqueue(operation);
-
-            //operation.IsSuccessfully = true;
-            //operation.Data = json;
-            //outcomingQueue.Enqueue(operation);
-
-            //SendLists(operation);
-            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
-            //Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
-            Boolean hasHouses = false;
-
-            //if (operation.Data == "never")
-            //{
-            //    SendAllObjects(operation);
-            //    //SendAllPhotosAsync(operation, hasFlats, hasHouses);
-            //}
-            //else
-            //{
-            //    SendMissingObjects(operation);
-            //    SendMissingAlbumsAsync(operation, hasFlats, hasHouses);
-            //}
+            if (operation.Data == "never")
+            {
+                SendAllObjects(operation);
+                //SendAllPhotosAsync(operation, hasFlats, hasHouses);
+            }
+            else
+            {
+                SendMissingObjects(operation);
+                //SendMissingAlbumsAsync(operation);
+            }
         }
 
         private void SendLists(Operation operation)
@@ -488,31 +472,21 @@ namespace RealtorServer.Model.NET
 
         private void SendAllObjects(Operation operation)
         {
-            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
-            Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
             object[][] dbObjects = new object[2][];
-            if (hasFlats)
+            if (realtyContext.Flats.Local.Count > 0)
             {
                 dbObjects[0] = realtyContext.Flats.AsNoTracking().ToArray();
                 foreach (Flat flat in dbObjects[0])
                     flat.Album.PhotoList = null;
             }
-            if (hasHouses)
+            if (realtyContext.Houses.Local.Count > 0)
             {
                 dbObjects[1] = realtyContext.Houses.AsNoTracking().ToArray();
                 foreach (House house in dbObjects[1])
                     house.Album.PhotoList = null;
             }
-            if (hasFlats || hasHouses)
-            {
-                operation.Data = JsonSerializer.Serialize(dbObjects);
-                operation.IsSuccessfully = true;
-            }
-            else
-            {
-                operation.Data = "";
-                operation.IsSuccessfully = false;
-            }
+            operation.Data = JsonSerializer.Serialize(dbObjects);
+            operation.IsSuccessfully = true;
             operation.OperationParameters.Target = TargetType.All;
             outcomingQueue.Enqueue(operation);
         }
@@ -558,32 +532,24 @@ namespace RealtorServer.Model.NET
 
         private void SendMissingObjects(Operation operation)
         {
-            DateTime lastUpdateTime = DateTime.Parse(operation.Data);
-            Boolean hasFlats = realtyContext.Flats.Local.Count > 0;
+            String dts = operation.Data;
+            //DateTime dt = DateTime.ParseExact(dts, "dd/MM/yyyy HH:mm:ss tt", CultureInfo.InvariantCulture);
+            DateTime dt = Convert.ToDateTime(dts, CultureInfo.CurrentCulture);
             object[][] dbObjects = new object[2][];
-            if (hasFlats)
+            if (realtyContext.Flats.Local.Count > 0)
             {
-                dbObjects[0] = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
+                dbObjects[0] = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= dt).ToArray();
                 foreach (Flat flat in dbObjects[0])
                     flat.Album.PhotoList = null;
             }
-            Boolean hasHouses = realtyContext.Houses.Local.Count > 0;
-            if (hasHouses)
+            if (realtyContext.Houses.Local.Count > 0)
             {
-                dbObjects[1] = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
+                dbObjects[1] = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= dt).ToArray();
                 foreach (House house in dbObjects[1])
                     house.Album.PhotoList = null;
             }
-            if (hasFlats || hasHouses)
-            {
-                operation.Data = JsonSerializer.Serialize(dbObjects);
-                operation.IsSuccessfully = true;
-            }
-            else
-            {
-                operation.Data = "";
-                operation.IsSuccessfully = false;
-            }
+            operation.Data = JsonSerializer.Serialize(dbObjects);
+            operation.IsSuccessfully = true;
             operation.OperationParameters.Target = TargetType.All;
             outcomingQueue.Enqueue(operation);
         }
@@ -652,18 +618,6 @@ namespace RealtorServer.Model.NET
         {
             operation.Data = "Completed";
             outcomingQueue.Enqueue(operation);
-        }
-
-
-        private Operation SendFullUpdateTEST(Operation operation)
-        {
-            FlatGenerator generator = new FlatGenerator();
-            Flat[] flats = generator.CreateFlatList(0, 3000).ToArray();
-            String json = JsonSerializer.Serialize<Flat[]>(flats);
-            operation.Data = json;
-            outcomingQueue.Enqueue(operation);
-            //Send a list of houses
-            return null;
         }
     }
 }
