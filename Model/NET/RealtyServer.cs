@@ -40,7 +40,7 @@ namespace RealtorServer.Model.NET
             queueChecker.AutoReset = true;
             queueChecker.Elapsed += (o, e) => Handle();
             queueChecker.Start();
-            logger.Info("Realty server has ran");
+            logger.Info("RealtyServer has ran");
             UpdateLog("has ran");
             //ClearDB();
         }
@@ -57,8 +57,8 @@ namespace RealtorServer.Model.NET
             while (incomingQueue.Count > 0)
             {
                 Operation operation = incomingQueue.Dequeue();
-                logger.Info($"{operation.OperationNumber} handle");
-                UpdateLog($"{operation.OperationNumber} handle");
+                logger.Info($"RealtyServer handle operation №{operation.OperationNumber}");
+                UpdateLog($"handle operation №{operation.OperationNumber}");
                 if (operation != null)
                 {
                     OperationType type = operation.OperationParameters.Type;
@@ -148,15 +148,17 @@ namespace RealtorServer.Model.NET
                         newFlat.Location.District = realtyContext.Districts.Find(newFlat.Location.DistrictId);
                     if (newFlat.Location.StreetId > 0)
                         newFlat.Location.Street = realtyContext.Streets.Find(newFlat.Location.StreetId);
-                    newFlat.RegistrationDate = DateTime.Now.Date;
+                    newFlat.RegistrationDate = DateTime.Now;
+                    newFlat.LastUpdateTime = DateTime.Now;
                     realtyContext.Flats.Local.Add(newFlat);
                     realtyContext.SaveChanges();
-                    logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
-                    UpdateLog($"{operation.OperationNumber} registered a flat {newFlat.Location.City} {newFlat.Location.District} {newFlat.Location.Street} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
+                    logger.Info($"{operation.IpAddress} has registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
+                    UpdateLog($"{operation.OperationNumber} registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
                     //отправить всем клиентам обновление
                     operation.Data = JsonSerializer.Serialize<Flat>(newFlat);
                     operation.IpAddress = "broadcast";
                     operation.IsSuccessfully = true;
+                    outcomingQueue.Enqueue(operation);
                 }
                 else
                 {

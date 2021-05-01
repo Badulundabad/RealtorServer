@@ -227,7 +227,7 @@ namespace RealtorServer.Model.NET
         {
             dispatcher.BeginInvoke(new Action(() =>
             {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"{ipAddress} {text}"));
+                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm:ss"), $"{ipAddress} {text}"));
             }));
         }
         private void OnPropertyChanged([CallerMemberName] String prop = "")
