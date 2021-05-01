@@ -116,31 +116,15 @@ namespace RealtorServer.Model.NET
             //client.ReceiveOverSocketAsync();
             client.ReceiveOverStreamAsync();
             clients.Add(client);
+            client.Disconnected += (s, e) => clients.Remove((LocalClient)s);
             logger.Info($"{client.IpAddress} has connected");
             UpdateLog($"{client.IpAddress} has connected");
         }
-        public void DisconnectClient(String ipAddress)
-        {
-            LocalClient disconnected = null;
-            foreach(LocalClient client in clients)
-            {
-                if (client.IpAddress == ipAddress)
-                {
-                    client.Disconnect();
-                    disconnected = client;
-                    break;
-                }
-            }
-            if (disconnected != null)
-                clients.Remove(disconnected);
-        }
         private void DisconnectAllClients()
         {
-            foreach (LocalClient client in clients)
-                client.Disconnect();
-            LocalClient[] clientArray = clients.ToArray();
-            foreach (LocalClient client in clientArray)
-                clients.Remove(client);
+            if (clients != null && clients.Count > 0)
+                foreach (LocalClient client in clients.ToArray())
+                    client.Disconnect();
         }
         private void CheckOutQueue()
         {

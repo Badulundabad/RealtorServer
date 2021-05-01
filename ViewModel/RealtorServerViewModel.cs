@@ -85,9 +85,7 @@ namespace RealtorServer.ViewModel
         {
             try
             {
-                if (operation.Data == "0x00")
-                    Server.DisconnectClient(operation.IpAddress);
-                else if (operation.OperationParameters.Type == OperationType.Update)
+                if (operation.OperationParameters.Type == OperationType.Update)
                     RealtyServer.IncomingQueue.Enqueue(operation);
 
                 else if (operation.OperationParameters.Direction == OperationDirection.Identity)

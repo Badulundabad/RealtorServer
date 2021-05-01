@@ -2,25 +2,24 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
-using System.Windows;
-using System.Diagnostics;
+using static RealtorServer.Model.Event.EventHandlers;
+using RealtorServer.Model.Event;
 
 namespace RealtorServer.Model.NET
 {
     public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
+        private bool isReceiving;
         private object streamSendLocker = new object();
         private object socketSendLocker = new object();
         private String name = "";
@@ -32,6 +31,7 @@ namespace RealtorServer.Model.NET
         private Queue<Operation> incomingOperations = null;
         private ObservableCollection<LogMessage> log = null;
         private static Logger logger = LogManager.GetCurrentClassLogger();
+        public event DisconnectedEventHandler Disconnected;
         public event PropertyChangedEventHandler PropertyChanged;
         #endregion
         #region Properties
@@ -70,7 +70,7 @@ namespace RealtorServer.Model.NET
             this.socket = socket;
             this.dispatcher = dispatcher;
             incomingOperations = input;
-            stream = new NetworkStream(socket);
+            stream = new NetworkStream(socket, true);
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
             OutcomingOperations = new OperationQueue();
             //OutcomingOperations.Enqueued += (s, e) => SendOverSocket();
@@ -92,17 +92,9 @@ namespace RealtorServer.Model.NET
                             do
                             {
                                 Byte[] buffer = new Byte[4096];
-                                try
-                                {
-                                    Int32 byteCount = stream.Read(buffer, 0, buffer.Length);
-                                    String data = Encoding.UTF8.GetString(buffer);
-                                    response.Append(data, 0, byteCount);
-                                }
-                                catch (Exception ex)
-                                {
-                                    UpdateLog($"{IpAddress}(ReceiveDataAsync do-while) {ex.Message}");
-                                    logger.Error($"{IpAddress}(ReceiveDataAsync do-while)\n{ex.Message}\n{buffer.Length}");
-                                }
+                                Int32 byteCount = stream.Read(buffer, 0, buffer.Length);
+                                String data = Encoding.UTF8.GetString(buffer);
+                                response.Append(data, 0, byteCount);
                             }
                             while (stream.DataAvailable);
                             GetOperation(response.ToString());
@@ -112,12 +104,13 @@ namespace RealtorServer.Model.NET
                 catch (Exception ex)
                 {
                     logger.Error($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
-                    UpdateLog($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
+                    UpdateLog($"(ReceiveDataAsync) {ex.Message}");
                 }
                 finally
                 {
-                    logger.Info($"{IpAddress} has disconnected");
-                    UpdateLog($"{IpAddress} has disconnected");
+
+                    logger.Info($"{IpAddress} has stopped");
+                    UpdateLog($"has stopped");
                 }
             });
         }
@@ -127,13 +120,15 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    Operation operation = OutcomingOperations.Dequeue();
-                    String json = JsonSerializer.Serialize(operation);
-                    byte[] data = Encoding.UTF8.GetBytes(json);
-                    stream.Write(data, 0, data.Length);
-                    Debug.WriteLine(data.Length);
-                    logger.Info($"{IpAddress} sent {json}");
-                    UpdateLog($"sent {json}");
+                    if (OutcomingOperations != null)
+                    {
+                        Operation operation = OutcomingOperations.Dequeue();
+                        String json = JsonSerializer.Serialize(operation);
+                        byte[] data = Encoding.UTF8.GetBytes(json);
+                        stream.Write(data, 0, data.Length);
+                        logger.Info($"{IpAddress} sent {json}");
+                        UpdateLog($"sent({data.Length} kbytes) {json}");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -142,6 +137,9 @@ namespace RealtorServer.Model.NET
                 }
             }
         }
+
+
+
         public async void ReceiveOverSocketAsync()
         {
             await Task.Run(() =>
@@ -169,12 +167,12 @@ namespace RealtorServer.Model.NET
                 catch (Exception ex)
                 {
                     logger.Error($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
-                    UpdateLog($"{IpAddress}(ReceiveDataAsync) {ex.Message}");
+                    UpdateLog($"(ReceiveDataAsync) {ex.Message}");
                 }
                 finally
                 {
-                    logger.Info($"{IpAddress} has disconnected");
-                    UpdateLog($"{IpAddress} has disconnected");
+                    logger.Info($"{IpAddress} has stopped");
+                    UpdateLog($"has stopped");
                 }
             });
         }
@@ -189,8 +187,6 @@ namespace RealtorServer.Model.NET
                     byte[] data = Encoding.UTF8.GetBytes(json);
                     Int32 count = socket.Send(data);
                     logger.Info($"{IpAddress} sent {json}");
-                    Debug.WriteLine(data.Length);
-                    Debug.WriteLine(count);
                     UpdateLog($"sent {json}");
                 }
                 catch (Exception ex)
@@ -204,15 +200,28 @@ namespace RealtorServer.Model.NET
         private void GetOperation(String message)
         {
             Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-            receivedOperation.IpAddress = IpAddress;
-            incomingOperations.Enqueue(receivedOperation);
-            logger.Info($"{IpAddress} received {message}");
-            UpdateLog($"received {message}");
+            if (receivedOperation.Data == "0x00")
+                Disconnect();
+            else
+            {
+                receivedOperation.IpAddress = IpAddress;
+                incomingOperations.Enqueue(receivedOperation);
+                logger.Info($"{IpAddress} received {message}");
+                UpdateLog($"received {message}");
+            }
         }
 
         public void Disconnect()
         {
             IsConnected = false;
+            OutcomingOperations = null;
+            stream.Close();
+            stream.Dispose();
+            socket.Close();
+            socket.Dispose();
+            Disconnected?.Invoke(this, new DisconnectedEventArgs());
+            logger.Info($"{IpAddress} has disconnected");
+            UpdateLog($"has disconnected");
         }
         private void UpdateLog(String text)
         {

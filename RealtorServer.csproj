@@ -118,6 +118,8 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Model\DataBase\RealtyContext.cs" />
+    <Compile Include="Model\Event\DisconnectedEventArgs.cs" />
+    <Compile Include="Model\Event\EventHandlers.cs" />
     <Compile Include="Model\NET\IdentityServer.cs" />
     <Compile Include="Model\NET\RealtyServer.cs" />
     <Compile Include="Model\NET\LocalClient.cs" />
