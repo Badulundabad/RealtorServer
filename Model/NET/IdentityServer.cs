@@ -1,26 +1,20 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
-using NLog;
 using static RealtorServer.Model.Event.EventHandlers;
-using System.Diagnostics;
 
 namespace RealtorServer.Model.NET
 {
     public class IdentityServer : Server
     {
         private CredentialContext credentialContext = new CredentialContext();
-        private static Logger logger = LogManager.GetCurrentClassLogger();
         public event OperationHandledEventHandler OperationHandled;
-        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log) : base(dispatcher, log)
+
+        public IdentityServer(Dispatcher dispatcher) : base(dispatcher)
         {
-            Log = log;
             Dispatcher = dispatcher;
             OutcomingOperations = new OperationQueue();
             IncomingOperations = new OperationQueue();
@@ -56,13 +50,12 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
-                    LogoutPrevious(credential);
+                //if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
+                //    LogoutPrevious(credential);
                 credential.IpAddress = operation.IpAddress;
                 credential.Token = GetToken();
-                Debug.WriteLine($"{operation.IpAddress} has logged in as {credential.Name}");
-                logger.Info($"{operation.IpAddress} has logged in as {credential.Name}");
-                //UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
+
+                LogInfo($"{operation.IpAddress} has logged in as {credential.Name}");
 
                 operation.Data = credential.Token;
                 operation.IsSuccessfully = true;
@@ -71,14 +64,11 @@ namespace RealtorServer.Model.NET
             {
                 operation.Data = "";
                 operation.IsSuccessfully = false;
-                Debug.WriteLine($"Identity server(Login) {ex.Message}");
-                logger.Error($"Identity server(Login) {ex.Message}");
-                //UpdateLog($"(Login) {ex.Message}");
+                LogError($"(Login) {ex.Message}");
             }
             finally
             {
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
-                //OutcomingOperations.Enqueue(operation);
             }
         }
         private void Logout(Operation operation, Credential credential)
@@ -87,22 +77,17 @@ namespace RealtorServer.Model.NET
             {
                 credential.IpAddress = "";
                 credential.Token = "";
-                Debug.WriteLine($"{credential.Name} has logged out");
-                logger.Info($"{credential.Name} has logged out");
-                //UpdateLog($"{credential.Name} has logged out");
+                LogInfo($"{credential.Name} has logged out");
                 operation.IsSuccessfully = true;
             }
             catch (Exception ex)
             {
                 operation.IsSuccessfully = false;
-                Debug.WriteLine($"Identity server(Logout) {ex.Message}");
-                logger.Error($"Identity server(Logout) {ex.Message}");
-                //UpdateLog($"(Logout) {ex.Message}");
+                LogError($"(Logout) {ex.Message}");
             }
             finally
             {
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
-                //OutcomingOperations.Enqueue(operation);
             }
         }
         private void LogoutPrevious(Credential credential)
@@ -115,7 +100,6 @@ namespace RealtorServer.Model.NET
                 Token = credential.Token,
                 IsSuccessfully = true
             }));
-            //OutcomingOperations.Enqueue();
             credential.IpAddress = "";
             credential.Token = "";
         }
@@ -129,9 +113,9 @@ namespace RealtorServer.Model.NET
                     credential.RegistrationDate = DateTime.Now;
                     credentialContext.Credentials.Local.Add(credential);
                     credentialContext.SaveChanges();
-                    Debug.WriteLine($"{operation.Name} has registered");
-                    logger.Info($"{operation.Name} has registered");
-                    //UpdateLog($"{operation.Name} has registered");
+
+                    LogInfo($"{operation.Name} has registered");
+                    
                     operation.IsSuccessfully = true;
                 }
                 else
@@ -140,34 +124,15 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 operation.IsSuccessfully = false;
-                Debug.WriteLine($"Identity server(Register) {ex.Message}");
-                logger.Error($"Identity server(Register) {ex.Message}");
-                //UpdateLog($"(Register) {ex.Message}");
+                LogError($"(Register) {ex.Message}");
             }
             finally
             {
                 operation.Data = "";
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
-                //OutcomingOperations.Enqueue(operation);
             }
         }
 
-        private void SendAgentList(Operation operation)
-        {
-            String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
-            operation.Data = JsonSerializer.Serialize(agents);
-            operation.IsSuccessfully = true;
-            OutcomingOperations.Enqueue(operation);
-        }
-        private Operation ToFire(Operation operation, Credential credential)
-        {
-            credentialContext.Credentials.Remove(credential);
-            credentialContext.SaveChanges();
-            operation.IsSuccessfully = true;
-            logger.Info($"{operation.Name} has fired");
-            UpdateLog($"{operation.Name} has fired");
-            return operation;
-        }
         private Credential FindMatchingCredential(String name, String password)
         {
             Credential match = credentialContext.Credentials.FirstOrDefault(cred =>
@@ -185,6 +150,36 @@ namespace RealtorServer.Model.NET
         {
             return "token";
             //return new Guid().ToString();
+        }
+
+
+
+        private void SendAgentList(Operation operation)
+        {
+            String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
+            operation.Data = JsonSerializer.Serialize(agents);
+            operation.IsSuccessfully = true;
+            OutcomingOperations.Enqueue(operation);
+        }
+        private void ToFire(Operation operation, Credential credential)
+        {
+            try
+            {
+                credentialContext.Credentials.Remove(credential);
+                credentialContext.SaveChanges();
+                operation.IsSuccessfully = true;
+                LogInfo($"{operation.Name} has fired");
+            }
+            catch (Exception ex)
+            {
+                operation.Data = "";
+                operation.IsSuccessfully = false;
+                LogError($"(ToFire) {ex.Message}");
+            }
+            finally
+            {
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+            }
         }
     }
 }

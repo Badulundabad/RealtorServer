@@ -2,24 +2,27 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using NLog;
 using RealtyModel.Model;
 
 namespace RealtorServer.Model.NET
 {
     public abstract class Server : INotifyPropertyChanged
     {
-        protected object handleLocker = new object();
         private String name = "";
         private Boolean isRunning = false;
         private Dispatcher dispatcher;
         private OperationQueue incomingOperations; 
         private OperationQueue outcomingOperations; 
-        private ObservableCollection<LogMessage> log;
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+        protected object handleLocker = new object();
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public String Name
         {
@@ -62,18 +65,9 @@ namespace RealtorServer.Model.NET
                 outcomingOperations = value;
             }
         }
-        public ObservableCollection<LogMessage> Log
-        {
-            get => log;
-            protected set
-            {
-                log = value;
-            }
-        }
 
-        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log)
+        public Server(Dispatcher dispatcher)
         {
-            this.log = log;
             this.dispatcher = dispatcher;
             name = GetType().Name;
         }
@@ -88,14 +82,16 @@ namespace RealtorServer.Model.NET
         {
             IsRunning = false;
         }
-        protected void UpdateLog(String text)
+        protected void LogInfo(String text)
         {
-            dispatcher.BeginInvoke(new Action(() =>
-            {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm:ss"), $"{name} {text}"));
-            }));
+            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name} {text}");
+            logger.Info($"{this.GetType().Name} {text}");
         }
-        public event PropertyChangedEventHandler PropertyChanged;
+        protected void LogError(String text)
+        {
+            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name} {text}");
+            logger.Error($"{this.GetType().Name} {text}");
+        }
         protected void OnProperyChanged([CallerMemberName] string prop = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));

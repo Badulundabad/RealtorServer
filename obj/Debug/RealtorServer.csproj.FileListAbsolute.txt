@@ -128,3 +128,5 @@ C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RandomFlatGene
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\NLog.xml
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.pdb
 C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer_Content.g.cs
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\credentials.db
+C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\realty.db

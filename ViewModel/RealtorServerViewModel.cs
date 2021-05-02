@@ -10,6 +10,7 @@ using RealtorServer.Model.NET;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using NLog;
+using System.Diagnostics;
 
 namespace RealtorServer.ViewModel
 {
@@ -19,6 +20,7 @@ namespace RealtorServer.ViewModel
         private object handleLocker = new object();
         private Boolean isRunning = false;
         private static Logger logger = LogManager.GetCurrentClassLogger();
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public Boolean IsRunning
         {
@@ -32,10 +34,8 @@ namespace RealtorServer.ViewModel
         public ICommand RunCommand { get; private set; }
         public ICommand StopCommand { get; private set; }
         public LocalServer Server { get; private set; }
-        public IdentityServer IdentityServer { get; private set; }
         public RealtyServer RealtyServer { get; private set; }
-        public ObservableCollection<LogMessage> Log { get; private set; }
-        public event PropertyChangedEventHandler PropertyChanged;
+        public IdentityServer IdentityServer { get; private set; }
         #endregion
 
         public RealtorServerViewModel()
@@ -43,7 +43,6 @@ namespace RealtorServer.ViewModel
             InitializeMembers();
             RunCommand = new CustomCommand((obj) =>
             {
-                Log.Clear();
                 IsRunning = true;
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
@@ -58,14 +57,11 @@ namespace RealtorServer.ViewModel
 
         private void InitializeMembers()
         {
-            Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log);
+            Server = new LocalServer(Dispatcher.CurrentDispatcher);
             Server.IncomingOperations.Enqueued += (s, e) => Handle();
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log);
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher);
             RealtyServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
-            //RealtyServer.OutcomingOperations.Enqueued += (s, e) => Server.OutcomingOperations.Enqueue(RealtyServer.OutcomingOperations.Dequeue());//Переделать убрав Outcoming на событие Handled
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log);
-            //IdentityServer.OutcomingOperations.Enqueued += (s, e) => Server.OutcomingOperations.Enqueue(IdentityServer.OutcomingOperations.Dequeue());
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher);
             IdentityServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
         }
         private void Handle()
@@ -92,22 +88,13 @@ namespace RealtorServer.ViewModel
                     }
                     catch (Exception ex)
                     {
-                        logger.Error($"ViewModel(CheckQueue) {ex.Message}");
-                        UpdateLog($"(Handle) {ex.Message}");
+                        logger.Error($"ViewModel(Handle) {ex.Message}");
+                        Debug.WriteLine($"ViewModel(Handle) {ex.Message}");
                         operation.IsSuccessfully = false;
                         Server.OutcomingOperations.Enqueue(operation);
                     }
                 }
             }
-        }
-        private void UpdateLog(String text)
-        {
-            //После тестов удалить
-            LogMessage logMessage = new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm"), $"Server {text}");
-            Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
-            {
-                Log.Add(logMessage);
-            }));
         }
         private void OnPropertyChanged([CallerMemberName] String prop = null)
         {
