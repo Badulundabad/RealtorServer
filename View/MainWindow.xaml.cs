@@ -23,16 +23,9 @@ namespace RealtorServer.View
     /// </summary>
     public partial class MainWindow : Window
     {
-       
         public MainWindow()
         {
             InitializeComponent();
-            this.DataContext = new RealtorServerViewModel();
-        }
-
-        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
-        {
-
         }
     }
 }

@@ -16,9 +16,8 @@ namespace RealtorServer.ViewModel
     class RealtorServerViewModel : INotifyPropertyChanged
     {
         #region Fields and Properties
+        private object handleLocker = new object();
         private Boolean isRunning = false;
-        private Queue<Operation> output = new Queue<Operation>();
-        private DispatcherTimer filterTask = new DispatcherTimer();
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public Boolean IsRunning
@@ -46,9 +45,6 @@ namespace RealtorServer.ViewModel
             {
                 Log.Clear();
                 IsRunning = true;
-                filterTask.Start();
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => IdentityServer.Run()));
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => RealtyServer.Run()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
             });
@@ -56,55 +52,52 @@ namespace RealtorServer.ViewModel
             StopCommand = new CustomCommand((obj) =>
             {
                 IsRunning = false;
-                filterTask.Stop();
                 Server.Stop();
-                IdentityServer.Stop();
-                RealtyServer.Stop();
             });
         }
 
         private void InitializeMembers()
         {
             Log = new ObservableCollection<LogMessage>();
-            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log, output);
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log, output);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log, output);
-            filterTask.Interval = TimeSpan.FromMilliseconds(100);
-            filterTask.Tick += (o, e) => CheckQueue();
+            Server = new LocalServer(Dispatcher.CurrentDispatcher, Log);
+            Server.IncomingOperations.Enqueued += (s, e) => Handle();
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Log);
+            RealtyServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
+            //RealtyServer.OutcomingOperations.Enqueued += (s, e) => Server.OutcomingOperations.Enqueue(RealtyServer.OutcomingOperations.Dequeue());//Переделать убрав Outcoming на событие Handled
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Log);
+            //IdentityServer.OutcomingOperations.Enqueued += (s, e) => Server.OutcomingOperations.Enqueue(IdentityServer.OutcomingOperations.Dequeue());
+            IdentityServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
         }
-        private void CheckQueue()
+        private void Handle()
         {
-            while (Server.IncomingQueue.Count > 0)
+            lock (handleLocker)
             {
-                Operation operation = Server.IncomingQueue.Dequeue();
-                if (operation != null)
-                    Handle(operation);
-            }
-        }
-        private void Handle(Operation operation)
-        {
-            try
-            {
-                if (operation.OperationParameters.Type == OperationType.Update)
-                    RealtyServer.IncomingQueue.Enqueue(operation);
-
-                else if (operation.OperationParameters.Direction == OperationDirection.Identity)
-                    IdentityServer.IncomingQueue.Enqueue(operation);
-
-                else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
-                    RealtyServer.IncomingQueue.Enqueue(operation);
-                else
+                while (Server.IncomingOperations.Count > 0)
                 {
-                    operation.IsSuccessfully = false;
-                    output.Enqueue(operation);
+                    Operation operation = null;
+                    try
+                    {
+                        operation = Server.IncomingOperations.Dequeue();
+                        if (operation.OperationParameters.Type == OperationType.Update)
+                            RealtyServer.IncomingOperations.Enqueue(operation);
+                        else if (operation.OperationParameters.Direction == OperationDirection.Identity)
+                            IdentityServer.IncomingOperations.Enqueue(operation);
+                        else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                            RealtyServer.IncomingOperations.Enqueue(operation);
+                        else
+                        {
+                            operation.IsSuccessfully = false;
+                            Server.OutcomingOperations.Enqueue(operation);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.Error($"ViewModel(CheckQueue) {ex.Message}");
+                        UpdateLog($"(Handle) {ex.Message}");
+                        operation.IsSuccessfully = false;
+                        Server.OutcomingOperations.Enqueue(operation);
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                logger.Error($"ViewModel(CheckQueue) {ex.Message}");
-                UpdateLog($"(CheckQueue) {ex.Message}");
-                operation.IsSuccessfully = false;
-                output.Enqueue(operation);
             }
         }
         private void UpdateLog(String text)

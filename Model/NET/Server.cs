@@ -13,20 +13,22 @@ namespace RealtorServer.Model.NET
 {
     public abstract class Server : INotifyPropertyChanged
     {
-        protected String serverName = "";
-        protected Boolean isRunning = false;
-        protected Dispatcher dispatcher;
-        protected ObservableCollection<LogMessage> log;
-        protected Queue<Operation> incomingQueue;
-        protected Queue<Operation> outcomingQueue;
-        protected CancellationToken serverToken;
+        protected object handleLocker = new object();
+        private String name = "";
+        private Boolean isRunning = false;
+        private Dispatcher dispatcher;
+        private OperationQueue incomingOperations; 
+        private OperationQueue outcomingOperations; 
+        private ObservableCollection<LogMessage> log;
 
-        public Queue<Operation> IncomingQueue
+        public String Name
         {
-            get => incomingQueue;
-            protected set => incomingQueue = value;
+            get => name;
+            protected set
+            {
+                name = value;
+            }
         }
-
         public Boolean IsRunning
         {
             get => isRunning;
@@ -36,13 +38,44 @@ namespace RealtorServer.Model.NET
                 OnProperyChanged();
             }
         }
-
-        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output)
+        public Dispatcher Dispatcher
         {
-            serverName = GetType().Name;
-            this.dispatcher = dispatcher;
+            get => dispatcher;
+            protected set
+            {
+                dispatcher = value;
+            }
+        }
+        public OperationQueue IncomingOperations
+        {
+            get => incomingOperations;
+            protected set
+            {
+                incomingOperations = value;
+            }
+        }
+        public OperationQueue OutcomingOperations
+        {
+            get => outcomingOperations;
+            protected set
+            {
+                outcomingOperations = value;
+            }
+        }
+        public ObservableCollection<LogMessage> Log
+        {
+            get => log;
+            protected set
+            {
+                log = value;
+            }
+        }
+
+        public Server(Dispatcher dispatcher, ObservableCollection<LogMessage> log)
+        {
             this.log = log;
-            outcomingQueue = output;
+            this.dispatcher = dispatcher;
+            name = GetType().Name;
         }
 
         public virtual async void RunAsync()
@@ -59,7 +92,7 @@ namespace RealtorServer.Model.NET
         {
             dispatcher.BeginInvoke(new Action(() =>
             {
-                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm:ss"), $"{serverName} {text}"));
+                log.Add(new LogMessage(DateTime.Now.ToString("dd:MM:yy hh:mm:ss"), $"{name} {text}"));
             }));
         }
         public event PropertyChangedEventHandler PropertyChanged;

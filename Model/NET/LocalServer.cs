@@ -10,24 +10,31 @@ using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
 using System.Globalization;
+using System.Diagnostics;
+using System.Linq;
 
 namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private Socket listeningSocket = null;
-        private List<LocalClient> clients = new List<LocalClient>();
+        private Socket listeningSocket;
+        private ObservableCollection<LocalClient> clients = new ObservableCollection<LocalClient>();
         private static Logger logger = LogManager.GetCurrentClassLogger();
-
+        public ObservableCollection<LocalClient> Clients
+        {
+            get => clients;
+            set => clients = value;
+        }
         public ObservableCollection<Task> OnlineClients { get; private set; }
 
-        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
+        public LocalServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log) : base(dispatcher, log)
         {
-            this.log = log;
-            this.dispatcher = dispatcher;
-            outcomingQueue = output;
-            IncomingQueue = new Queue<Operation>();
+            Log = log;
+            Dispatcher = dispatcher;
+            OutcomingOperations = new OperationQueue();
+            IncomingOperations = new OperationQueue();
             OnlineClients = new ObservableCollection<Task>();
+            OutcomingOperations.Enqueued += (s, e) => Handle();
         }
 
         public override async void RunAsync()
@@ -42,28 +49,26 @@ namespace RealtorServer.Model.NET
                     {
                         listeningSocket.Bind(serverAddress);
                         listeningSocket.Listen(10);
-                        using (Timer queueChecker = new Timer((o) => CheckOutQueue(), new object(), 0, 500))
-                        {
-                            logger.Info("Local server has ran");
-                            UpdateLog("has ran");
-                            while (IsRunning)
-                            {
-                                if (listeningSocket.Poll(100000, SelectMode.SelectRead))
-                                    ConnectClient();
-                            }
-                        }
+                        logger.Info("LocalServer has ran");
+                        Debug.WriteLine("LocalServer has ran");
+                        //UpdateLog("has ran");
+                        while (IsRunning)
+                            if (listeningSocket.Poll(100000, SelectMode.SelectRead))
+                                ConnectClient();
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.Error($"Local server(RunAsync) {ex.Message}");
-                    UpdateLog($"(RunAsync) {ex.Message}");
+                    Debug.WriteLine($"LocalServer(RunAsync) {ex.Message}");
+                    logger.Error($"LocalServer(RunAsync) {ex.Message}");
+                    //UpdateLog($"(RunAsync) {ex.Message}");
                 }
                 finally
                 {
                     DisconnectAllClients();
-                    logger.Info("Local server has stopped");
-                    UpdateLog("has stopped");
+                    Debug.WriteLine("LocalServer has stopped");
+                    logger.Info("LocalServer has stopped");
+                    //UpdateLog("has stopped");
                 }
             });
         }
@@ -83,6 +88,7 @@ namespace RealtorServer.Model.NET
                         byte[] buffer = new byte[socket.ReceiveBufferSize];
                         EndPoint endPoint = new IPEndPoint(IPAddress.None, 0);
 
+                        Debug.WriteLine("UDP marker has ran");
                         logger.Info("UDP marker has ran");
                         while (IsRunning)
                         {
@@ -97,13 +103,15 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
-                    logger.Error($"Local server (RunUDPMarkerAsync) {ex.Message}");
-                    UpdateLog($"(RunUDPMarkerAsync) {ex.Message}");
+                    Debug.WriteLine($"LocalServer (RunUDPMarkerAsync) {ex.Message}");
+                    logger.Error($"LocalServer (RunUDPMarkerAsync) {ex.Message}");
+                    //UpdateLog($"(RunUDPMarkerAsync) {ex.Message}");
                 }
                 finally
                 {
                     socket.Dispose();
                     socket.Close();
+                    Debug.WriteLine("UDP marker has stopped");
                     logger.Info("UDP marker has stopped");
                 }
             });
@@ -112,42 +120,77 @@ namespace RealtorServer.Model.NET
         private void ConnectClient()
         {
             Socket clientSocket = listeningSocket.Accept();
-            var client = new LocalClient(dispatcher, clientSocket, log, IncomingQueue);
+            var client = new LocalClient(Dispatcher, clientSocket, Log);
             //client.ReceiveOverSocketAsync();
             client.ReceiveOverStreamAsync();
-            clients.Add(client);
-            client.Disconnected += (s, e) => clients.Remove((LocalClient)s);
+            AddClient(client);
+            client.OperationReceived += (s, e) => IncomingOperations.Enqueue(e.Operation);
+            client.Disconnected += (s, e) => RemoveClient((LocalClient)s);
+            Debug.WriteLine($"{client.IpAddress} has connected");
             logger.Info($"{client.IpAddress} has connected");
-            UpdateLog($"{client.IpAddress} has connected");
+            //UpdateLog($"{client.IpAddress} has connected");
         }
-        private void DisconnectAllClients()
+        public void DisconnectAllClients()
         {
             if (clients != null && clients.Count > 0)
                 foreach (LocalClient client in clients.ToArray())
                     client.Disconnect();
         }
-        private void CheckOutQueue()
+        private void AddClient(LocalClient client)
         {
-            try
+            Dispatcher.Invoke(() =>
             {
-                while (IsRunning && outcomingQueue.Count > 0)
+                clients.Add(client);
+            });
+        }
+        private void RemoveClient(LocalClient client)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                clients.Remove(client);
+            });
+        }
+        private void Handle()
+        {
+            lock (handleLocker)
+            {
+                while (true)
                 {
-                    Operation operation = outcomingQueue.Dequeue();
-                    if (operation != null)
+                    try
                     {
-                        foreach (LocalClient client in clients)
+                        if (clients != null && clients.Count > 0 && OutcomingOperations.Count > 0)
                         {
-                            if (operation.IpAddress == "broadcast")
-                                client.OutcomingOperations.Enqueue(operation);
-                            else if (operation.IpAddress == client.IpAddress)
-                                client.OutcomingOperations.Enqueue(operation);
+                            Operation operation = OutcomingOperations.Dequeue();
+                            if (operation != null)
+                            {
+                                if (operation.IpAddress == "broadcast")
+                                    foreach (LocalClient client in clients)
+                                    {
+                                        Debug.WriteLine($"LocalServer has handled {operation.OperationNumber}");
+                                        logger.Info($"LocalServer has handled {operation.OperationNumber}");
+                                        client.OutcomingOperations.Enqueue(operation);
+                                    }
+                                else
+                                    foreach (LocalClient client in clients)
+                                        if (operation.IpAddress == client.IpAddress)
+                                        {
+                                            Debug.WriteLine($"LocalServer has handled {operation.OperationNumber}");
+                                            logger.Info($"LocalServer has handled {operation.OperationNumber}");
+                                            client.OutcomingOperations.Enqueue(operation);
+                                        }
+                            }
                         }
+                        else
+                            break;
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"LocalServer(Handle) {ex.Message}");
+                        Debug.WriteLine($"LocalServer(Handle) {ex.InnerException}");
+                        logger.Info($"LocalServer(Handle) {ex.Message}");
+                        //UpdateLog($"(Handle) {ex.Message}");
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                UpdateLog($"(CheckOutQueue) {ex.Message}");
             }
         }
     }

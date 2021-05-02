@@ -8,43 +8,23 @@ using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
 using NLog;
+using static RealtorServer.Model.Event.EventHandlers;
+using System.Diagnostics;
 
 namespace RealtorServer.Model.NET
 {
     public class IdentityServer : Server
     {
         private CredentialContext credentialContext = new CredentialContext();
-        private System.Timers.Timer queueChecker = null;
         private static Logger logger = LogManager.GetCurrentClassLogger();
-
-        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log, Queue<Operation> output) : base(dispatcher, log, output)
+        public event OperationHandledEventHandler OperationHandled;
+        public IdentityServer(Dispatcher dispatcher, ObservableCollection<LogMessage> log) : base(dispatcher, log)
         {
-            this.log = log;
-            this.dispatcher = dispatcher;
-            outcomingQueue = output;
-            IncomingQueue = new Queue<Operation>();
-        }
-
-        public void Run()
-        {
-            queueChecker = new System.Timers.Timer();
-            queueChecker.Interval = 100;
-            queueChecker.AutoReset = true;
-            queueChecker.Elapsed += (o, e) =>
-            {
-                //UpdateLog("is checking a queue");
-                while (IncomingQueue.Count > 0)
-                    Handle();
-            };
-            queueChecker.Start();
-            logger.Info("Identity server has ran");
-            UpdateLog("has ran");
-        }
-        public override void Stop()
-        {
-            queueChecker.Stop();
-            logger.Info("Identity server has stopped");
-            UpdateLog("has stopped");
+            Log = log;
+            Dispatcher = dispatcher;
+            OutcomingOperations = new OperationQueue();
+            IncomingOperations = new OperationQueue();
+            IncomingOperations.Enqueued += (s, e) => Handle();
         }
         public Boolean CheckAccess(String ipAddress, String token)
         {
@@ -55,112 +35,129 @@ namespace RealtorServer.Model.NET
         }
         private void Handle()
         {
-            Operation operation = null;
+            lock (handleLocker)
+            {
+                while (IncomingOperations.Count > 0)
+                {
+                    Operation operation = IncomingOperations.Dequeue();
+                    Credential credential = FindMatchingCredential(operation.Name, operation.Data);
+
+                    if (operation.OperationParameters.Type == OperationType.Login && credential != null)
+                        Login(operation, credential);
+                    else if (operation.OperationParameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
+                        Logout(operation, credential);
+                    else if (operation.OperationParameters.Type == OperationType.Register && credential == null)
+                        Register(operation);
+                }
+            }
+        }
+
+        private void Login(Operation operation, Credential credential)
+        {
             try
             {
-                operation = IncomingQueue.Dequeue();
-                Credential credential = FindMatchingCredential(operation.Name, operation.Data);
+                if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
+                    LogoutPrevious(credential);
+                credential.IpAddress = operation.IpAddress;
+                credential.Token = GetToken();
+                Debug.WriteLine($"{operation.IpAddress} has logged in as {credential.Name}");
+                logger.Info($"{operation.IpAddress} has logged in as {credential.Name}");
+                //UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
 
-                if (operation.OperationParameters.Type == OperationType.Login && credential != null)
-                {
-                    if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
-                        LogoutPrevious(credential);
-                    operation = Login(operation, credential);
-                }
-                else if (operation.OperationParameters.Type == OperationType.Update)
-                {
-                    //Send a list of agents
-                    String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
-                    operation.Data = JsonSerializer.Serialize(agents);
-                    operation.IsSuccessfully = true;
-                    outcomingQueue.Enqueue(operation);
-                }
-                else if (operation.OperationParameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
-                    operation = Logout(operation, credential);
-                else if (operation.OperationParameters.Type == OperationType.Register && credential == null)
-                {
-                    if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
-                        operation = Register(operation);
-                    else operation.IsSuccessfully = false;
-                }
-                else if (operation.OperationParameters.Type == OperationType.ToFire && credential != null)
-                {
-                    if (CheckAccess(operation.IpAddress, operation.Token))
-                        operation = ToFire(operation, credential);
-                    else operation.IsSuccessfully = false;
-                }
-                else operation.IsSuccessfully = false;
+                operation.Data = credential.Token;
+                operation.IsSuccessfully = true;
             }
             catch (Exception ex)
             {
+                operation.Data = "";
                 operation.IsSuccessfully = false;
-                logger.Error($"Identity server(Handle) {ex.Message}");
-                UpdateLog($"(Handle) {ex.Message}");
+                Debug.WriteLine($"Identity server(Login) {ex.Message}");
+                logger.Error($"Identity server(Login) {ex.Message}");
+                //UpdateLog($"(Login) {ex.Message}");
             }
             finally
             {
-                outcomingQueue.Enqueue(operation);
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                //OutcomingOperations.Enqueue(operation);
             }
         }
-
-        private Operation Login(Operation operation, Credential credential)
-        {
-            credential.IpAddress = operation.IpAddress;
-            credential.Token = GetToken();
-            operation.Data = credential.Token;
-            operation.IsSuccessfully = true;
-            logger.Info($"{operation.IpAddress} has logged in as {credential.Name}");
-            UpdateLog($"{operation.IpAddress} has logged in as {credential.Name}");
-            return operation;
-        }
-        private Operation Logout(Operation operation, Credential credential)
-        {
-            credential.IpAddress = "";
-            credential.Token = "";
-            operation.IsSuccessfully = true;
-            logger.Info($"{credential.Name} has logged out");
-            UpdateLog($"{credential.Name} has logged out");
-            return operation;
-        }
-        private void LogoutPrevious(Credential credential)
-        {
-            outcomingQueue.Enqueue(new Operation()
-            {
-                IpAddress = credential.IpAddress,
-                OperationParameters = new OperationParameters()
-                {
-                    Direction = OperationDirection.Identity,
-                    Type = OperationType.Logout
-                },
-                Name = credential.Name,
-                Token = credential.Token,
-                IsSuccessfully = true
-            });
-            credential.IpAddress = "";
-            credential.Token = "";
-        }
-        private Operation Register(Operation operation)
+        private void Logout(Operation operation, Credential credential)
         {
             try
             {
-                Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
-                credential.RegistrationDate = DateTime.Now;
-                credentialContext.Credentials.Local.Add(credential);
-                credentialContext.SaveChanges();
-
-                operation.Data = "";
+                credential.IpAddress = "";
+                credential.Token = "";
+                Debug.WriteLine($"{credential.Name} has logged out");
+                logger.Info($"{credential.Name} has logged out");
+                //UpdateLog($"{credential.Name} has logged out");
                 operation.IsSuccessfully = true;
-                logger.Info($"{operation.Name} has registered");
-                UpdateLog($"{operation.Name} has registered");
-                return operation;
             }
             catch (Exception ex)
             {
-                logger.Error($"Identity server(Register) {ex.Message}");
-                UpdateLog($"(Register) {ex.Message}");
                 operation.IsSuccessfully = false;
-                return operation;
+                Debug.WriteLine($"Identity server(Logout) {ex.Message}");
+                logger.Error($"Identity server(Logout) {ex.Message}");
+                //UpdateLog($"(Logout) {ex.Message}");
             }
+            finally
+            {
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                //OutcomingOperations.Enqueue(operation);
+            }
+        }
+        private void LogoutPrevious(Credential credential)
+        {
+            OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(new Operation()
+            {
+                IpAddress = credential.IpAddress,
+                OperationParameters = new OperationParameters() { Direction = OperationDirection.Identity, Type = OperationType.Logout },
+                Name = credential.Name,
+                Token = credential.Token,
+                IsSuccessfully = true
+            }));
+            //OutcomingOperations.Enqueue();
+            credential.IpAddress = "";
+            credential.Token = "";
+        }
+        private void Register(Operation operation)
+        {
+            try
+            {
+                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
+                {
+                    Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
+                    credential.RegistrationDate = DateTime.Now;
+                    credentialContext.Credentials.Local.Add(credential);
+                    credentialContext.SaveChanges();
+                    Debug.WriteLine($"{operation.Name} has registered");
+                    logger.Info($"{operation.Name} has registered");
+                    //UpdateLog($"{operation.Name} has registered");
+                    operation.IsSuccessfully = true;
+                }
+                else
+                    operation.IsSuccessfully = false;
+            }
+            catch (Exception ex)
+            {
+                operation.IsSuccessfully = false;
+                Debug.WriteLine($"Identity server(Register) {ex.Message}");
+                logger.Error($"Identity server(Register) {ex.Message}");
+                //UpdateLog($"(Register) {ex.Message}");
+            }
+            finally
+            {
+                operation.Data = "";
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                //OutcomingOperations.Enqueue(operation);
+            }
+        }
+
+        private void SendAgentList(Operation operation)
+        {
+            String[] agents = (from cred in credentialContext.Credentials.Local select new String(cred.Name.ToCharArray())).ToArray<String>();
+            operation.Data = JsonSerializer.Serialize(agents);
+            operation.IsSuccessfully = true;
+            OutcomingOperations.Enqueue(operation);
         }
         private Operation ToFire(Operation operation, Credential credential)
         {

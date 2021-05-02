@@ -5,10 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:RealtorServer"
         xmlns:vm="clr-namespace:RealtorServer.ViewModel"
-        d:DataContext="{d:DesignInstance Type=vm:RealtorServerViewModel,IsDesignTimeCreatable=True}"
         mc:Ignorable="d"
-        Title="RealtyServer" Height="400" Width="815"
-        Closing="Window_Closing">
+        Title="RealtyServer" Height="400" Width="400">
     <Window.Resources>
         <DataTemplate x:Key="LogItem_Style">
             <Grid>
@@ -39,15 +37,11 @@
         <DataTemplate x:Key="ClientItem_Style">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="120"/>
-                    <ColumnDefinition Width="120"/>
-                    <ColumnDefinition Width="40"/>
+                    <ColumnDefinition/>
+                    <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}"/>
-                <TextBlock Text="{Binding IpAddress}" 
-                           Grid.Column="1"/>
-                <TextBlock Text="{Binding IsRunning}" 
-                           Grid.Column="2"/>
+                <TextBlock Text="{Binding Name}" Width="150" FontSize="20" Background="Red"/>
+                <TextBlock Text="{Binding IpAddress}" Width="150" FontSize="20" Grid.Column="1" Background="Green"/>
             </Grid>
         </DataTemplate>
         <Style x:Key="ButtonStyle" TargetType="{x:Type Button}">
@@ -55,6 +49,7 @@
             <Setter Property="Height" Value="50"/>
             <Setter Property="Grid.Row" Value="2"/>
             <Setter Property="Grid.ColumnSpan" Value="2"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsRunning}" Value="false">
                     <Setter Property="Content" Value="Run"/>
@@ -69,35 +64,14 @@
             </Style.Triggers>
         </Style>
     </Window.Resources>
-    <Grid>
+    <Grid Background="LightGray">
         <Grid.RowDefinitions>
-            <RowDefinition Height="150"/>
-            <RowDefinition Height="150"/>
+            <RowDefinition Height="300"/>
             <RowDefinition/>
         </Grid.RowDefinitions>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="500"/>
-            <ColumnDefinition Width="300"/>
-        </Grid.ColumnDefinitions>
-        <ListBox x:Name="Log" 
-                 Height="270"
-                 Width="480"
-                 Grid.RowSpan="2"
-                 ItemTemplate="{StaticResource LogItem_Style}"
-                 ItemsSource="{Binding Log, UpdateSourceTrigger=PropertyChanged}"/>
-        <ListBox x:Name="RegisteredUsers"
-                 Height="130"
-                 Width="280"
-                 Grid.Column="1"
-                 ItemTemplate="{StaticResource UserItem_Style}"
-                 ItemsSource="{Binding IdentityServer, UpdateSourceTrigger=PropertyChanged}"/>
         <ListBox x:Name="OnlineClients"
-                 Height="130"
-                 Width="280"
-                 Grid.Column="1"
-                 Grid.Row="1"
                  ItemTemplate="{StaticResource ClientItem_Style}"
-                 ItemsSource="{Binding CurrentServer.OnlineClients, UpdateSourceTrigger=PropertyChanged}"/>
+                 ItemsSource="{Binding Server.Clients, UpdateSourceTrigger=PropertyChanged}"/>
         <Button Style="{StaticResource ButtonStyle}"/>
     </Grid>
 </Window>
