@@ -35,13 +35,13 @@
             </Grid>
         </DataTemplate>
         <DataTemplate x:Key="ClientItem_Style">
-            <Grid>
+            <Grid Background="LightGray">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition/>
                     <ColumnDefinition/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding Name}" Width="150" FontSize="20" Background="Red"/>
-                <TextBlock Text="{Binding IpAddress}" Width="150" FontSize="20" Grid.Column="1" Background="Green"/>
+                <TextBlock Text="{Binding Name}" TextAlignment="Center" Width="185" FontSize="20"/>
+                <TextBlock Text="{Binding IpAddress}" TextAlignment="Center" Width="185" FontSize="20" Grid.Column="1"/>
             </Grid>
         </DataTemplate>
         <Style x:Key="ButtonStyle" TargetType="{x:Type Button}">
