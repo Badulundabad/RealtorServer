@@ -68,7 +68,7 @@ namespace RealtorServer.Model.NET
             stream = new NetworkStream(socket, true);
             IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
             OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => SendOverStream();
+            OutcomingOperations.Enqueued += (s, e) => SendOverStreamAsync();
         }
 
         public async void ReceiveOverStreamAsync()
@@ -91,13 +91,14 @@ namespace RealtorServer.Model.NET
                                 bytes += byteCount;
                                 String data = Encoding.UTF8.GetString(buffer);
                                 response.Append(data, 0, byteCount);
+                                LogInfo($"received {byteCount} bytes");
+                                Task.Delay(20).Wait();
                             }
                             while (stream.DataAvailable && IsConnected);
-                            if (IsConnected)
-                            {
-                                GetOperation(response.ToString(), bytes);
-                                bytes = 0;
-                            }
+                            LogInfo($"received {bytes} bytes totally");
+
+                            GetOperationAsync(response.ToString(), bytes);
+                            bytes = 0;
                         }
                         Task.Delay(10).Wait();
                     }
@@ -112,38 +113,54 @@ namespace RealtorServer.Model.NET
                 }
             }));
         }
-        private void GetOperation(String message, Int32 byteCount)
+        private async void GetOperationAsync(String message, Int32 byteCount)
         {
-            Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-            LogInfo($"received {byteCount}kbytes {receivedOperation.OperationNumber}");
-            receivedOperation.IpAddress = IpAddress;
-            OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
-        }
-        private void SendOverStream()
-        {
-            lock (streamSendLocker)
+            await Task.Run(() =>
             {
-                try
+                Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
+                LogInfo($"received {byteCount}kbytes {receivedOperation.OperationNumber}");
+                receivedOperation.IpAddress = IpAddress;
+                OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
+            });
+        }
+        private async void SendOverStreamAsync()
+        {
+            await Task.Run(() =>
+            {
+                lock (streamSendLocker)
                 {
-                    if (OutcomingOperations != null)
+                    try
                     {
-                        Operation operation = OutcomingOperations.Dequeue();
-                        if (operation.OperationParameters.Type == OperationType.Login && operation.IsSuccessfully)
-                            Name = operation.Name;
-                        else if (operation.OperationParameters.Type == OperationType.Logout && operation.IsSuccessfully)
-                            Name = "";
-                        String json = JsonSerializer.Serialize(operation);
-                        byte[] data = Encoding.UTF8.GetBytes(json);
-                        stream.Write(data, 0, data.Length);
-                        LogInfo($"sent {operation.OperationNumber}");
+                        if (OutcomingOperations != null)
+                        {
+                            Operation operation = OutcomingOperations.Dequeue();
+                            if (operation.OperationParameters.Type == OperationType.Login && operation.IsSuccessfully)
+                                Name = operation.Name;
+                            else if (operation.OperationParameters.Type == OperationType.Logout && operation.IsSuccessfully)
+                                Name = "";
+                            String json = JsonSerializer.Serialize(operation);
+                            byte[] data = Encoding.UTF8.GetBytes(json);
+                            stream.Write(data, 0, data.Length);
+                            LogInfo($"sent {operation.OperationNumber}");
+                            Task.Delay(500).Wait();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"(SendOverStream) {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    LogError($"(SendOverStream) {ex.Message}");
-                }
-            }
+            });
         }
+
+
+
+
+
+
+
+
+
         public async void DisconnectAsync()
         {
             await Task.Run(() =>
@@ -245,7 +262,7 @@ namespace RealtorServer.Model.NET
                                 response.Append(data, 0, byteCount);
                             }
                             while (socket.Available > 0);
-                            GetOperation(response.ToString(), byteCount);
+                            GetOperationAsync(response.ToString(), byteCount);
                         }
                     }
                 }
