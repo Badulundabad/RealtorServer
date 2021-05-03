@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using Microsoft.Win32;
 using System.IO;
 using RealtyModel.Model.RealtyObjects;
+using System.Data.Entity;
 
 namespace RealtorServer.Model.NET
 {
@@ -146,6 +147,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
+                LogInfo($"{operation.OperationNumber} flat has deserialized");
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     if (newFlat.AlbumId > 0)
@@ -160,7 +162,6 @@ namespace RealtorServer.Model.NET
                         newFlat.Location.Street = realtyDB.Streets.Find(newFlat.Location.StreetId);
                     newFlat.RegistrationDate = DateTime.Now;
                     newFlat.LastUpdateTime = DateTime.Now;
-
                     realtyDB.Flats.Local.Add(newFlat);
 
                     List<Photo> photos = new List<Photo>();
