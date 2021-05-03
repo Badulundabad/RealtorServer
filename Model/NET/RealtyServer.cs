@@ -31,6 +31,11 @@ namespace RealtorServer.Model.NET
             IncomingOperations.Enqueued += (s, e) => Handle();
             //ClearDB();
             //Test();
+            //Album album = new Album()
+            //{
+            //    PhotoList = new System.Collections.ObjectModel.ObservableCollection<byte[]>()
+            //};
+            //JsonSerializer.Serialize(album);
         }
 
         private void Handle()
@@ -80,21 +85,9 @@ namespace RealtorServer.Model.NET
             realtyDB.Photos.AddRange(list);
             realtyDB.SaveChanges();
 
-            Album album = new Album()
-            {
-                Id = 0,
-                Location = ""
-            };
-            album.UpdatePhotos(list);
-
-            Int32[] keys = album.GetPhotoKeys();
-            for (Int32 i = 0; i < album.PhotoList.Count;)
-            {
-                Debug.WriteLine($"{keys[i]} - {album.PhotoList[i].Length}");
-                i++;
-            }
-
-            //album.GetPhotos(realtyDB.Photos.Local);
+            Album album = new Album();
+            album.Serialize(list);
+            album.Deserialize();
         }
         private void ClearDB()
         {
@@ -167,6 +160,17 @@ namespace RealtorServer.Model.NET
                         newFlat.Location.Street = realtyDB.Streets.Find(newFlat.Location.StreetId);
                     newFlat.RegistrationDate = DateTime.Now;
                     newFlat.LastUpdateTime = DateTime.Now;
+
+                    List<Photo> photos = new List<Photo>();
+                    newFlat.Album.Deserialize();
+                    foreach (Byte[] data in newFlat.Album.PhotoCollection)
+                    {
+                        Photo photo = new Photo() { Data = data };
+                        photos.Add(photo);
+                        realtyDB.Photos.Local.Add(photo);
+                    }
+                    newFlat.Album.UpdateKeys(photos);
+
                     realtyDB.Flats.Local.Add(newFlat);
                     realtyDB.SaveChanges();
 
@@ -427,18 +431,20 @@ namespace RealtorServer.Model.NET
 
         private void SendUpdate(Operation operation)
         {
-            if (operation.Data == "never")
-            {
-                LogInfo($"{operation.OperationNumber} has requested a full update");
-                SendFullUpdate(operation);
-                //SendAllPhotosAsync(operation, hasFlats, hasHouses);
-            }
-            else
-            {
-                LogInfo($"{operation.OperationNumber} has requested a partial full update");
-                SendPartialUpdate(operation);
-                //SendMissingAlbumsAsync(operation);
-            }
+            SendFullUpdate(operation);
+            SendAllPhotosAsync(operation);
+            //if (operation.Data == "never")
+            //{
+            //    LogInfo($"{operation.OperationNumber} has requested a full update");
+            //    SendFullUpdate(operation);
+            //    //SendAllPhotosAsync(operation, hasFlats, hasHouses);
+            //}
+            //else
+            //{
+            //    LogInfo($"{operation.OperationNumber} has requested a partial full update");
+            //    SendPartialUpdate(operation);
+            //    //SendMissingAlbumsAsync(operation);
+            //}
         }
 
         private void SendLists(Operation operation)
@@ -540,6 +546,7 @@ namespace RealtorServer.Model.NET
                     House[] houses = realtyDB.Houses.AsNoTracking().ToArray();
                     dbObjects[1] = JsonSerializer.Serialize(houses);
                 }
+
                 operation.Data = JsonSerializer.Serialize(dbObjects);
                 operation.IsSuccessfully = true;
                 operation.OperationParameters.Target = TargetType.All;
@@ -572,20 +579,14 @@ namespace RealtorServer.Model.NET
             operation.OperationParameters.Target = TargetType.House;
             OutcomingOperations.Enqueue(operation);
         }
-        private async void SendAllPhotosAsync(Operation operation, Boolean hasFlats, Boolean hasHouses)
+        private async void SendAllPhotosAsync(Operation operation)
         {
             await Task.Run(() =>
             {
-                if (hasFlats)
+                if (realtyDB.Flats.Local.Count > 0)
                     foreach (Flat flat in realtyDB.Flats)
                     {
                         operation.Data = JsonSerializer.Serialize(flat.Album);
-                        OutcomingOperations.Enqueue(operation);
-                    }
-                if (hasHouses)
-                    foreach (House house in realtyDB.Houses)
-                    {
-                        operation.Data = JsonSerializer.Serialize(house.Album);
                         OutcomingOperations.Enqueue(operation);
                     }
                 SendUpdateCompleteMessage(operation);

@@ -115,17 +115,9 @@ namespace RealtorServer.Model.NET
         private void GetOperation(String message, Int32 byteCount)
         {
             Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-            //if (receivedOperation.Data == "0x00")
-            //{
-            //    LogInfo("received disconnect");
-            //    DisconnectAsync();
-            //}
-            //else
-            //{
-                LogInfo($"received {byteCount}kbytes {message}");
-                receivedOperation.IpAddress = IpAddress;
-                OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
-            //}
+            LogInfo($"received {byteCount}kbytes {receivedOperation.OperationNumber}");
+            receivedOperation.IpAddress = IpAddress;
+            OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
         }
         private void SendOverStream()
         {
@@ -143,7 +135,7 @@ namespace RealtorServer.Model.NET
                         String json = JsonSerializer.Serialize(operation);
                         byte[] data = Encoding.UTF8.GetBytes(json);
                         stream.Write(data, 0, data.Length);
-                        LogInfo($"sent {json}");
+                        LogInfo($"sent {operation.OperationNumber}");
                     }
                 }
                 catch (Exception ex)
