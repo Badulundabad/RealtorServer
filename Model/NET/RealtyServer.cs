@@ -161,17 +161,19 @@ namespace RealtorServer.Model.NET
                     newFlat.RegistrationDate = DateTime.Now;
                     newFlat.LastUpdateTime = DateTime.Now;
 
+                    realtyDB.Flats.Local.Add(newFlat);
+
                     List<Photo> photos = new List<Photo>();
                     newFlat.Album.Deserialize();
+
                     foreach (Byte[] data in newFlat.Album.PhotoCollection)
                     {
-                        Photo photo = new Photo() { Data = data };
+                        Photo photo = new Photo() { AlbumId = newFlat.Album.Id, Data = data };
                         photos.Add(photo);
                         realtyDB.Photos.Local.Add(photo);
                     }
                     newFlat.Album.UpdateKeys(photos);
 
-                    realtyDB.Flats.Local.Add(newFlat);
                     realtyDB.SaveChanges();
 
                     LogInfo($"{operation.IpAddress} has registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
@@ -433,6 +435,7 @@ namespace RealtorServer.Model.NET
         {
             SendFullUpdate(operation);
             SendAllPhotosAsync(operation);
+            SendUpdateCompleteMessage(operation);
             //if (operation.Data == "never")
             //{
             //    LogInfo($"{operation.OperationNumber} has requested a full update");
@@ -579,18 +582,15 @@ namespace RealtorServer.Model.NET
             operation.OperationParameters.Target = TargetType.House;
             OutcomingOperations.Enqueue(operation);
         }
-        private async void SendAllPhotosAsync(Operation operation)
+        private void SendAllPhotosAsync(Operation operation)
         {
-            await Task.Run(() =>
+            if (realtyDB.Photos.Local.Count > 0)
             {
-                if (realtyDB.Flats.Local.Count > 0)
-                    foreach (Flat flat in realtyDB.Flats)
-                    {
-                        operation.Data = JsonSerializer.Serialize(flat.Album);
-                        OutcomingOperations.Enqueue(operation);
-                    }
-                SendUpdateCompleteMessage(operation);
-            });
+                operation.Data = JsonSerializer.Serialize(realtyDB.Photos.ToArray());
+                operation.OperationParameters.Target = TargetType.Album;
+                operation.IsSuccessfully = true;
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+            }
         }
 
         private void SendPartialUpdate(Operation operation)
@@ -683,7 +683,8 @@ namespace RealtorServer.Model.NET
 
         private void SendUpdateCompleteMessage(Operation operation)
         {
-            operation.Data = "Completed";
+            operation.OperationParameters.Target = TargetType.None;
+            operation.Data = "completed";
             OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
         }
     }
