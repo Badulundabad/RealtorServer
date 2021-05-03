@@ -104,6 +104,7 @@ namespace RealtorServer.Model.NET
         {
             Socket clientSocket = listeningSocket.Accept();
             var client = new LocalClient(clientSocket);
+            client.CheckConnectionAsync();
             client.ReceiveOverStreamAsync();
             AddClient(client);
             client.OperationReceived += (s, e) => IncomingOperations.Enqueue(e.Operation);

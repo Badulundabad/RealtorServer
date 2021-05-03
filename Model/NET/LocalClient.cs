@@ -94,7 +94,10 @@ namespace RealtorServer.Model.NET
                             }
                             while (stream.DataAvailable && IsConnected);
                             if (IsConnected)
+                            {
                                 GetOperation(response.ToString(), bytes);
+                                bytes = 0;
+                            }
                         }
                         Task.Delay(10).Wait();
                     }
@@ -112,17 +115,17 @@ namespace RealtorServer.Model.NET
         private void GetOperation(String message, Int32 byteCount)
         {
             Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-            if (receivedOperation.Data == "0x00")
-            {
-                LogInfo("received disconnect");
-                DisconnectAsync();
-            }
-            else
-            {
+            //if (receivedOperation.Data == "0x00")
+            //{
+            //    LogInfo("received disconnect");
+            //    DisconnectAsync();
+            //}
+            //else
+            //{
                 LogInfo($"received {byteCount}kbytes {message}");
                 receivedOperation.IpAddress = IpAddress;
                 OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
-            }
+            //}
         }
         private void SendOverStream()
         {
@@ -192,7 +195,42 @@ namespace RealtorServer.Model.NET
             Debug.WriteLine($"{DateTime.Now} {IpAddress} {text}");
             logger.Error(text);
         }
-
+        public async void CheckConnectionAsync()
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    while (true)
+                    {
+                        if (GetSocketStatus())
+                            Task.Delay(1000).Wait();
+                        else
+                        {
+                            DisconnectAsync();
+                            break;
+                        }
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    DisconnectAsync();
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"{DateTime.Now} (ConnectAsync){ex.Message}");
+                }
+            });
+            bool GetSocketStatus()
+            {
+                bool part1 = socket.Poll(1000, SelectMode.SelectRead);
+                bool part2 = (socket.Available == 0);
+                if (part1 && part2)
+                    return false;
+                else
+                    return true;
+            }
+        }
         //Резервные методы - кандидаты на удаление
         public async void ReceiveOverSocketAsync()
         {

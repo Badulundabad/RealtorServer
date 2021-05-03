@@ -1,6 +1,7 @@
 ﻿using System.Data.Entity;
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
+using RealtyModel.Model.RealtyObjects;
 
 namespace RealtorServer.Model.DataBase
 {
@@ -15,8 +16,10 @@ namespace RealtorServer.Model.DataBase
             Streets.Load();
             Locations.Load();
             Albums.Load();
+            Photos.Load();
             Customers.Load();
         }
+        
         public DbSet<Flat> Flats { get; set; }
         public DbSet<House> Houses { get; set; }
 
@@ -25,8 +28,9 @@ namespace RealtorServer.Model.DataBase
         public DbSet<District> Districts {get;set;}
         public DbSet<Street> Streets {get;set;}
 
-        public DbSet<Customer> Customers { get; set; }
-
         public DbSet<Album> Albums {get;set;}
+        public DbSet<Photo> Photos { get; set; }
+        
+        public DbSet<Customer> Customers { get; set; }
     }
 }

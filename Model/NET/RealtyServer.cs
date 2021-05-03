@@ -11,12 +11,16 @@ using System.Globalization;
 using System.Diagnostics;
 using NLog;
 using static RealtorServer.Model.Event.EventHandlers;
+using System.Collections.Generic;
+using Microsoft.Win32;
+using System.IO;
+using RealtyModel.Model.RealtyObjects;
 
 namespace RealtorServer.Model.NET
 {
     public class RealtyServer : Server
     {
-        private RealtyContext realtyContext = new RealtyContext();
+        private RealtyContext realtyDB = new RealtyContext();
         public event OperationHandledEventHandler OperationHandled;
 
         public RealtyServer(Dispatcher dispatcher) : base(dispatcher)
@@ -25,7 +29,8 @@ namespace RealtorServer.Model.NET
             OutcomingOperations = new OperationQueue();
             IncomingOperations = new OperationQueue();
             IncomingOperations.Enqueued += (s, e) => Handle();
-            ClearDB();
+            //ClearDB();
+            Test();
         }
 
         private void Handle()
@@ -59,24 +64,56 @@ namespace RealtorServer.Model.NET
                 }
             }
         }
+
+        private void Test()
+        {
+            List<Photo> list = new List<Photo>();
+            OpenFileDialog openFileDialog = new OpenFileDialog()
+            {
+                Filter = "Файлы изображений (*.BMP; *.JPG; *.JPEG; *.PNG) | *.BMP; *.JPG; *.JPEG; *.PNG",
+                Multiselect = true,
+                Title = "Выбрать фотографии"
+            };
+            if (openFileDialog.ShowDialog() == true)
+                foreach (string fileName in openFileDialog.FileNames)
+                    list.Add(new Photo() { Data = File.ReadAllBytes(fileName) });
+            realtyDB.Photos.AddRange(list);
+            realtyDB.SaveChanges();
+
+            Album album = new Album()
+            {
+                Id = 0,
+                Location = ""
+            };
+            album.UpdatePhotos(list);
+
+            Int32[] keys = album.GetPhotoKeys();
+            for (Int32 i = 0; i < album.PhotoList.Count;)
+            {
+                Debug.WriteLine($"{keys[i]} - {album.PhotoList[i].Length}");
+                i++;
+            }
+
+            //album.GetPhotos(realtyDB.Photos.Local);
+        }
         private void ClearDB()
         {
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Cities'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Districts'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Streets'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Flats'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Houses'");
-            realtyContext.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Locations'");
-            realtyContext.Albums.Local.Clear();
-            realtyContext.Cities.Local.Clear();
-            realtyContext.Customers.Local.Clear();
-            realtyContext.Districts.Local.Clear();
-            realtyContext.Flats.Local.Clear();
-            realtyContext.Locations.Local.Clear();
-            realtyContext.Streets.Local.Clear();
-            realtyContext.SaveChanges();
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Cities'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Districts'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Streets'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Flats'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Houses'");
+            realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Locations'");
+            realtyDB.Albums.Local.Clear();
+            realtyDB.Cities.Local.Clear();
+            realtyDB.Customers.Local.Clear();
+            realtyDB.Districts.Local.Clear();
+            realtyDB.Flats.Local.Clear();
+            realtyDB.Locations.Local.Clear();
+            realtyDB.Streets.Local.Clear();
+            realtyDB.SaveChanges();
         }
 
         private void AddObject(Operation operation)
@@ -119,19 +156,19 @@ namespace RealtorServer.Model.NET
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     if (newFlat.AlbumId > 0)
-                        newFlat.Album = realtyContext.Albums.Find(newFlat.AlbumId);
+                        newFlat.Album = realtyDB.Albums.Find(newFlat.AlbumId);
                     if (newFlat.CustomerId > 0)
-                        newFlat.Customer = realtyContext.Customers.Find(newFlat.CustomerId);
+                        newFlat.Customer = realtyDB.Customers.Find(newFlat.CustomerId);
                     if (newFlat.Location.CityId > 0)
-                        newFlat.Location.City = realtyContext.Cities.Find(newFlat.Location.CityId);
+                        newFlat.Location.City = realtyDB.Cities.Find(newFlat.Location.CityId);
                     if (newFlat.Location.DistrictId > 0)
-                        newFlat.Location.District = realtyContext.Districts.Find(newFlat.Location.DistrictId);
+                        newFlat.Location.District = realtyDB.Districts.Find(newFlat.Location.DistrictId);
                     if (newFlat.Location.StreetId > 0)
-                        newFlat.Location.Street = realtyContext.Streets.Find(newFlat.Location.StreetId);
+                        newFlat.Location.Street = realtyDB.Streets.Find(newFlat.Location.StreetId);
                     newFlat.RegistrationDate = DateTime.Now;
                     newFlat.LastUpdateTime = DateTime.Now;
-                    realtyContext.Flats.Local.Add(newFlat);
-                    realtyContext.SaveChanges();
+                    realtyDB.Flats.Local.Add(newFlat);
+                    realtyDB.SaveChanges();
 
                     LogInfo($"{operation.IpAddress} has registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
 
@@ -162,8 +199,8 @@ namespace RealtorServer.Model.NET
                 if (!FindDuplicate(TargetType.House, newHouse.Location))
                 {
                     //добавить в бд
-                    realtyContext.Houses.Local.Add(newHouse);
-                    realtyContext.SaveChanges();
+                    realtyDB.Houses.Local.Add(newHouse);
+                    realtyDB.SaveChanges();
                     LogInfo($"{operation.IpAddress} has registered a house {newHouse.Location.City.Name} {newHouse.Location.District.Name} {newHouse.Location.Street.Name} {newHouse.Location.HouseNumber}");
 
                     //отправить всем клиентам обновление
@@ -190,12 +227,12 @@ namespace RealtorServer.Model.NET
             try
             {
                 Flat updFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
-                Flat dbFlat = realtyContext.Flats.Find(updFlat.Id);
+                Flat dbFlat = realtyDB.Flats.Find(updFlat.Id);
                 if (dbFlat != null && updFlat != null && operation.Name == dbFlat.Agent)
                 {
                     UpdateProperties(updFlat, dbFlat, operation);
                     dbFlat.LastUpdateTime = DateTime.Now;
-                    realtyContext.SaveChanges();
+                    realtyDB.SaveChanges();
                     LogInfo($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
 
                     operation.Data = JsonSerializer.Serialize<Flat>(updFlat);
@@ -220,12 +257,12 @@ namespace RealtorServer.Model.NET
             try
             {
                 House updHouse = JsonSerializer.Deserialize<House>(operation.Data);
-                House dbHouse = realtyContext.Houses.Find(updHouse.Id);
+                House dbHouse = realtyDB.Houses.Find(updHouse.Id);
                 if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent)
                 {
                     UpdateProperties(updHouse, dbHouse, operation);
                     dbHouse.LastUpdateTime = DateTime.Now;
-                    realtyContext.SaveChanges();
+                    realtyDB.SaveChanges();
                     LogInfo($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
 
                     operation.Data = JsonSerializer.Serialize<House>(updHouse);
@@ -249,11 +286,11 @@ namespace RealtorServer.Model.NET
             LogInfo($"{operation.OperationNumber} remove flat");
             try
             {
-                Flat dbFlat = realtyContext.Flats.Find(operation.Data);
+                Flat dbFlat = realtyDB.Flats.Find(operation.Data);
                 if (dbFlat != null && operation.Name == dbFlat.Agent)
                 {
-                    realtyContext.Flats.Remove(dbFlat);
-                    realtyContext.SaveChanges();
+                    realtyDB.Flats.Remove(dbFlat);
+                    realtyDB.SaveChanges();
 
                     LogInfo($"{operation.IpAddress} has removed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
 
@@ -278,11 +315,11 @@ namespace RealtorServer.Model.NET
             LogInfo($"{operation.OperationNumber} remove house");
             try
             {
-                House dbHouse = realtyContext.Houses.Find(operation.Data);
+                House dbHouse = realtyDB.Houses.Find(operation.Data);
                 if (dbHouse != null && operation.Name == dbHouse.Agent)
                 {
-                    realtyContext.Houses.Remove(dbHouse);
-                    realtyContext.SaveChanges();
+                    realtyDB.Houses.Remove(dbHouse);
+                    realtyDB.SaveChanges();
 
                     LogInfo($"{operation.IpAddress} has removed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
 
@@ -304,21 +341,21 @@ namespace RealtorServer.Model.NET
         }
         private Boolean FindDuplicate(TargetType target, Location location = null, Customer customer = null)
         {
-            if (target == TargetType.Flat && realtyContext.Flats.Count() > 0)
-                return realtyContext.Flats.Local.Any(flat =>
+            if (target == TargetType.Flat && realtyDB.Flats.Count() > 0)
+                return realtyDB.Flats.Local.Any(flat =>
                                                      flat.Location.City.Name == location.City.Name &&
                                                      flat.Location.Street.Name == location.Street.Name &&
                                                      flat.Location.District.Name == location.District.Name &&
                                                      flat.Location.HouseNumber == location.HouseNumber &&
                                                      flat.Location.FlatNumber == location.FlatNumber);
-            else if (target == TargetType.House && realtyContext.Houses.Local.Count > 0)
-                return realtyContext.Houses.Local.Any(house =>
+            else if (target == TargetType.House && realtyDB.Houses.Local.Count > 0)
+                return realtyDB.Houses.Local.Any(house =>
                                                       house.Location.City == location.City &&
                                                       house.Location.Street == location.Street &&
                                                       house.Location.HouseNumber == location.HouseNumber &&
                                                       house.Location.FlatNumber == location.FlatNumber);
-            else if (target == TargetType.Customer && realtyContext.Customers.Local.Count > 0)
-                return realtyContext.Customers.Local.Any(cus =>
+            else if (target == TargetType.Customer && realtyDB.Customers.Local.Count > 0)
+                return realtyDB.Customers.Local.Any(cus =>
                                                          cus.Name == customer.Name &&
                                                          cus.PhoneNumbers == customer.PhoneNumbers);
             else return false;
@@ -348,7 +385,7 @@ namespace RealtorServer.Model.NET
         private void UpdateAlbum(BaseRealtorObject fromObject, BaseRealtorObject toObject)
         {
             toObject.Album.Preview = fromObject.Album.Preview;
-            toObject.Album.PhotoList = fromObject.Album.PhotoList;
+            //toObject.Album.PhotoList = fromObject.Album.PhotoList;
         }
         private void UpdateCustomer(BaseRealtorObject fromObject, BaseRealtorObject toObject)
         {
@@ -406,13 +443,13 @@ namespace RealtorServer.Model.NET
 
         private void SendLists(Operation operation)
         {
-            if (realtyContext.Cities.Local.Count > 0)
+            if (realtyDB.Cities.Local.Count > 0)
                 SendCities(operation);
-            if (realtyContext.Districts.Local.Count > 0)
+            if (realtyDB.Districts.Local.Count > 0)
                 SendDistricts(operation);
-            if (realtyContext.Streets.Local.Count > 0)
+            if (realtyDB.Streets.Local.Count > 0)
                 SendStreets(operation);
-            if (realtyContext.Customers.Local.Count > 0)
+            if (realtyDB.Customers.Local.Count > 0)
                 SendCutomers(operation);
         }
         private void SendCities(Operation operation)
@@ -420,7 +457,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 operation.OperationParameters.Target = TargetType.City;
-                operation.Data = JsonSerializer.Serialize(realtyContext.Cities.Local.ToArray());
+                operation.Data = JsonSerializer.Serialize(realtyDB.Cities.Local.ToArray());
                 operation.IsSuccessfully = true;
             }
             catch
@@ -438,7 +475,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 operation.OperationParameters.Target = TargetType.District;
-                operation.Data = JsonSerializer.Serialize(realtyContext.Districts.Local.ToArray());
+                operation.Data = JsonSerializer.Serialize(realtyDB.Districts.Local.ToArray());
                 operation.IsSuccessfully = true;
             }
             catch
@@ -456,7 +493,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 operation.OperationParameters.Target = TargetType.Street;
-                operation.Data = JsonSerializer.Serialize(realtyContext.Streets.Local.ToArray());
+                operation.Data = JsonSerializer.Serialize(realtyDB.Streets.Local.ToArray());
                 operation.IsSuccessfully = true;
             }
             catch
@@ -474,7 +511,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 operation.OperationParameters.Target = TargetType.Customer;
-                operation.Data = JsonSerializer.Serialize(realtyContext.Customers.Local.ToArray());
+                operation.Data = JsonSerializer.Serialize(realtyDB.Customers.Local.ToArray());
                 operation.IsSuccessfully = true;
             }
             catch
@@ -493,14 +530,14 @@ namespace RealtorServer.Model.NET
             try
             {
                 String[] dbObjects = new String[2];
-                if (realtyContext.Flats.Local.Count > 0)
+                if (realtyDB.Flats.Local.Count > 0)
                 {
-                    Flat[] flats = realtyContext.Flats.ToArray();
+                    Flat[] flats = realtyDB.Flats.ToArray();
                     dbObjects[0] = JsonSerializer.Serialize(flats);
                 }
-                if (realtyContext.Houses.Local.Count > 0)
+                if (realtyDB.Houses.Local.Count > 0)
                 {
-                    House[] houses = realtyContext.Houses.AsNoTracking().ToArray();
+                    House[] houses = realtyDB.Houses.AsNoTracking().ToArray();
                     dbObjects[1] = JsonSerializer.Serialize(houses);
                 }
                 operation.Data = JsonSerializer.Serialize(dbObjects);
@@ -521,9 +558,7 @@ namespace RealtorServer.Model.NET
         }
         private void SendAllFlats(Operation operation)
         {
-            Flat[] flats = realtyContext.Flats.AsNoTracking().ToArray();
-            foreach (Flat flat in flats)
-                flat.Album.PhotoList = null;
+            Flat[] flats = realtyDB.Flats.AsNoTracking().ToArray();
             String dataJson = JsonSerializer.Serialize(flats);
             operation.Data = dataJson;
             operation.OperationParameters.Target = TargetType.Flat;
@@ -531,9 +566,7 @@ namespace RealtorServer.Model.NET
         }
         private void SendAllHouses(Operation operation)
         {
-            House[] houses = realtyContext.Houses.AsNoTracking().ToArray();
-            foreach (House house in houses)
-                house.Album.PhotoList = null;
+            House[] houses = realtyDB.Houses.AsNoTracking().ToArray();
             String dataJson = JsonSerializer.Serialize(houses);
             operation.Data = dataJson;
             operation.OperationParameters.Target = TargetType.House;
@@ -544,13 +577,13 @@ namespace RealtorServer.Model.NET
             await Task.Run(() =>
             {
                 if (hasFlats)
-                    foreach (Flat flat in realtyContext.Flats)
+                    foreach (Flat flat in realtyDB.Flats)
                     {
                         operation.Data = JsonSerializer.Serialize(flat.Album);
                         OutcomingOperations.Enqueue(operation);
                     }
                 if (hasHouses)
-                    foreach (House house in realtyContext.Houses)
+                    foreach (House house in realtyDB.Houses)
                     {
                         operation.Data = JsonSerializer.Serialize(house.Album);
                         OutcomingOperations.Enqueue(operation);
@@ -565,17 +598,17 @@ namespace RealtorServer.Model.NET
             {
                 DateTime dt = Convert.ToDateTime(operation.Data, CultureInfo.InvariantCulture);
                 String[] dbObjects = new String[2];
-                if (realtyContext.Flats.Local.Count > 0)
+                if (realtyDB.Flats.Local.Count > 0)
                 {
-                    Flat[] flats = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= dt).ToArray();
+                    Flat[] flats = realtyDB.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= dt).ToArray();
                     dbObjects[0] = JsonSerializer.Serialize(flats);
                 }
-                if (realtyContext.Houses.Local.Count > 0)
+                if (realtyDB.Houses.Local.Count > 0)
                 {
-                    House[] houses = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= dt).ToArray();
+                    House[] houses = realtyDB.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= dt).ToArray();
                     dbObjects[1] = JsonSerializer.Serialize(houses);
                 }
-                
+
                 operation.Data = JsonSerializer.Serialize(dbObjects);
                 operation.IsSuccessfully = true;
                 operation.OperationParameters.Target = TargetType.All;
@@ -596,10 +629,7 @@ namespace RealtorServer.Model.NET
         {
             DateTime lastUpdateTime = DateTime.Parse(operation.Data);
 
-            Flat[] missingFlats = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
-            foreach (Flat flat in missingFlats)
-                flat.Album.PhotoList = null;
-
+            Flat[] missingFlats = realtyDB.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
             operation.Data = JsonSerializer.Serialize(missingFlats);
             operation.OperationParameters.Target = TargetType.Flat;
             OutcomingOperations.Enqueue(operation);
@@ -608,10 +638,7 @@ namespace RealtorServer.Model.NET
         {
             DateTime lastUpdateTime = DateTime.Parse(operation.Data);
 
-            House[] missingHouses = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
-            foreach (House house in missingHouses)
-                house.Album.PhotoList = null;
-
+            House[] missingHouses = realtyDB.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
             operation.Data = JsonSerializer.Serialize(missingHouses);
             operation.OperationParameters.Target = TargetType.House;
             OutcomingOperations.Enqueue(operation);
@@ -627,7 +654,7 @@ namespace RealtorServer.Model.NET
 
                     if (hasFlats)
                     {
-                        Flat[] missingFlats = realtyContext.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
+                        Flat[] missingFlats = realtyDB.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
                         foreach (Flat flat in missingFlats)
                         {
                             operation.Data = JsonSerializer.Serialize(flat.Album);
@@ -636,7 +663,7 @@ namespace RealtorServer.Model.NET
                     }
                     if (hasHouses)
                     {
-                        House[] missingHouses = realtyContext.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
+                        House[] missingHouses = realtyDB.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
                         foreach (House house in missingHouses)
                         {
                             operation.Data = JsonSerializer.Serialize(house.Album);

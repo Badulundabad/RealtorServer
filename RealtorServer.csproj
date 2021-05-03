@@ -127,7 +127,6 @@
     <Compile Include="Model\NET\RealtyServer.cs" />
     <Compile Include="Model\NET\LocalClient.cs" />
     <Compile Include="Model\DataBase\CredentialContext.cs" />
-    <Compile Include="Model\DataBase\AlbumContext.cs" />
     <Compile Include="Model\NET\LocalServer.cs" />
     <Compile Include="Model\NET\Server.cs" />
     <Compile Include="ViewModel\RealtorServerViewModel.cs" />
