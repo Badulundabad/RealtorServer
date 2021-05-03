@@ -30,7 +30,7 @@ namespace RealtorServer.Model.NET
             IncomingOperations = new OperationQueue();
             IncomingOperations.Enqueued += (s, e) => Handle();
             //ClearDB();
-            Test();
+            //Test();
         }
 
         private void Handle()
