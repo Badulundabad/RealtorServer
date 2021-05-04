@@ -11,6 +11,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using NLog;
 using System.Diagnostics;
+using System.Net;
 
 namespace RealtorServer.ViewModel
 {
@@ -74,11 +75,11 @@ namespace RealtorServer.ViewModel
                     try
                     {
                         operation = Server.IncomingOperations.Dequeue();
-                        if (operation.OperationParameters.Type == OperationType.Update)
+                        if (operation.Parameters.Type == OperationType.Update)
                             RealtyServer.IncomingOperations.Enqueue(operation);
-                        else if (operation.OperationParameters.Direction == OperationDirection.Identity)
+                        else if (operation.Parameters.Direction == OperationDirection.Identity)
                             IdentityServer.IncomingOperations.Enqueue(operation);
-                        else if (operation.OperationParameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                        else if (operation.Parameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(IPAddress.Parse(operation.IpAddress), operation.Token))
                             RealtyServer.IncomingOperations.Enqueue(operation);
                         else
                         {

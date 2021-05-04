@@ -89,7 +89,7 @@ namespace RealtorServer.Model.NET
         }
         protected void LogError(String text)
         {
-            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name} {text}");
+            Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name} {text}\n");
             logger.Error($"{this.GetType().Name} {text}");
         }
         protected void OnProperyChanged([CallerMemberName] string prop = null)

@@ -9,11 +9,11 @@ namespace RealtorServer.Model.Event
 {
     public class OperationHandledEventArgs
     {
-        private Operation operation;
-        public Operation Operation { get => operation; set => operation = value; }
+        public Operation Operation { get; set; }
+
         public OperationHandledEventArgs(Operation operation)
         {
-            this.operation = operation;
+            Operation = operation;
         }
     }
 }

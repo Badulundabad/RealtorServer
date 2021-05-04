@@ -1,29 +1,25 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using RealtyModel.Model;
 using NLog;
-using static RealtorServer.Model.Event.EventHandlers;
 using RealtorServer.Model.Event;
-using System.Diagnostics;
+using static RealtorServer.Model.Event.EventHandlers;
+using System.Text.Json;
 
 namespace RealtorServer.Model.NET
 {
     public class LocalClient : INotifyPropertyChanged
     {
         #region Fields
-        private object streamSendLocker = new object();
-        private object socketSendLocker = new object();
+        private object sendLocker = new object();
         private String name = "";
-        private String ipAddress = "none";
+        private IPAddress ipAddress = null;
         private Boolean isConnected = false;
         private Socket socket;
         private NetworkStream stream;
@@ -42,7 +38,7 @@ namespace RealtorServer.Model.NET
                 OnPropertyChanged();
             }
         }
-        public String IpAddress
+        public IPAddress IpAddress
         {
             get => ipAddress;
             private set
@@ -66,46 +62,46 @@ namespace RealtorServer.Model.NET
         {
             this.socket = socket;
             stream = new NetworkStream(socket, true);
-            IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address.ToString();
+            IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address;
             OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => SendOverStreamAsync();
+            OutcomingOperations.Enqueued += (s, e) => SendAsync();
         }
 
-        public async void ReceiveOverStreamAsync()
+        public async void ReceiveAsync()
         {
             await Task.Run((Action)(() =>
             {
                 IsConnected = true;
-                Int32 bytes = 0;
                 try
                 {
                     while (IsConnected)
                     {
-                        if (stream.DataAvailable)
+                        if (socket.Available > 0)
                         {
+                            byte[] buffer = new byte[256];
                             StringBuilder response = new StringBuilder();
+
                             do
                             {
-                                Byte[] buffer = new Byte[4096];
-                                Int32 byteCount = stream.Read(buffer, 0, buffer.Length);
-                                bytes += byteCount;
-                                String data = Encoding.UTF8.GetString(buffer);
-                                response.Append(data, 0, byteCount);
-                                LogInfo($"received {byteCount} bytes");
-                                Task.Delay(20).Wait();
+                                socket.Receive(buffer);
+                                String received = Encoding.UTF8.GetString(buffer);
+                                if (received.Contains("<EOF>"))
+                                {
+                                    String[] ar = received.Split(new String[] { "<EOF>" }, StringSplitOptions.None);
+                                    response.Append(ar[0]);
+                                }
+                                else response.Append(received);
                             }
-                            while (stream.DataAvailable && IsConnected);
-                            LogInfo($"received {bytes} bytes totally");
-
-                            GetOperationAsync(response.ToString(), bytes);
-                            bytes = 0;
+                            while (socket.Available > 0);
+                            LogInfo($"has received {response.Length + 5}");
+                            HandleResponseAsync(response.ToString());
                         }
                         Task.Delay(10).Wait();
                     }
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(ReceiveOverStreamAsync) {bytes}kbytes {ex.Message}");
+                    LogError($"(ReceiveOverStreamAsync) bytes {ex.Message}");
                 }
                 finally
                 {
@@ -113,121 +109,80 @@ namespace RealtorServer.Model.NET
                 }
             }));
         }
-        private async void GetOperationAsync(String message, Int32 byteCount)
-        {
-            await Task.Run(() =>
-            {
-                Operation receivedOperation = JsonSerializer.Deserialize<Operation>(message);
-                LogInfo($"received {byteCount}kbytes {receivedOperation.OperationNumber}");
-                receivedOperation.IpAddress = IpAddress;
-                OperationReceived?.Invoke(this, new OperationReceivedEventArgs(receivedOperation));
-            });
-        }
-        private async void SendOverStreamAsync()
-        {
-            await Task.Run(() =>
-            {
-                lock (streamSendLocker)
-                {
-                    try
-                    {
-                        if (OutcomingOperations != null)
-                        {
-                            Operation operation = OutcomingOperations.Dequeue();
-                            if (operation.OperationParameters.Type == OperationType.Login && operation.IsSuccessfully)
-                                Name = operation.Name;
-                            else if (operation.OperationParameters.Type == OperationType.Logout && operation.IsSuccessfully)
-                                Name = "";
-                            String json = JsonSerializer.Serialize(operation);
-                            byte[] data = Encoding.UTF8.GetBytes(json);
-                            stream.Write(data, 0, data.Length);
-                            LogInfo($"sent {operation.OperationNumber}");
-                            Task.Delay(500).Wait();
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        LogError($"(SendOverStream) {ex.Message}");
-                    }
-                }
-            });
-        }
-
-
-
-
-
-
-
-
-
-        public async void DisconnectAsync()
+        private async void HandleResponseAsync(String data)
         {
             await Task.Run(() =>
             {
                 try
                 {
-                    IsConnected = false;
-                    OutcomingOperations = null;
-                    Task.Delay(1000).Wait();
-                    socket.Shutdown(SocketShutdown.Both);
-                    socket.Close();
-                    socket.Dispose();
-                    stream.Close();
-                    stream.Dispose();
+                    Operation operation = JsonSerializer.Deserialize<Operation>(data);
+                    LogInfo($"{operation.OperationNumber} - {operation.Parameters.Type} {operation.Parameters.Target}");
+                    operation.IpAddress = IpAddress.ToString();
+                    OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(DisconnectAsync) {ex.Message}");
-                }
-                finally
-                {
-                    LogInfo("has disconnected");
-                    Disconnected?.Invoke(this, new DisconnectedEventArgs());
+                    LogError($"(GetOperationAsync) {ex.Message}");
                 }
             });
         }
-        private void OnPropertyChanged([CallerMemberName] String prop = "")
+        private async void SendAsync()
         {
-            if (PropertyChanged != null)
+            await Task.Run(() =>
             {
-                PropertyChanged(this, new PropertyChangedEventArgs(prop));
-            }
+                lock (sendLocker)
+                {
+                    if (OutcomingOperations != null && OutcomingOperations.Count > 0)
+                    {
+                        try
+                        {
+                            Operation operation = OutcomingOperations.Dequeue();
+                            LogInfo($"has started to send {operation.OperationNumber}");
+                            if (operation.Parameters.Type == OperationType.Login && operation.IsSuccessfully)
+                                Name = operation.Name;
+                            else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
+                                Name = "";
+
+                            Byte[] data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(operation)+"<EOF>");
+                            socket.Send(data);
+                            LogInfo($"has sent {data.Length} bytes");
+                        }
+                        catch (SocketException sockEx)
+                        {
+                            LogError($"(SendAsync) {sockEx.ErrorCode} {sockEx.Message}");
+                        }
+                        catch (Exception ex)
+                        {
+                            LogError($"(SendAsync) {ex.Message}");
+                        }
+                        Task.Delay(500).Wait();
+                    }
+                }
+            });
         }
-        private void LogInfo(String text)
-        {
-            Debug.WriteLine($"{DateTime.Now} {IpAddress} {text}");
-            logger.Info(text);
-        }
-        private void LogError(String text)
-        {
-            Debug.WriteLine($"{DateTime.Now} {IpAddress} {text}");
-            logger.Error(text);
-        }
+
         public async void CheckConnectionAsync()
         {
             await Task.Run(() =>
             {
-                try
+                while (true)
                 {
-                    while (true)
+                    try
                     {
                         if (GetSocketStatus())
                             Task.Delay(1000).Wait();
                         else
                         {
+                            LogInfo("SOCKET WAS UNAVAILABLE");
                             DisconnectAsync();
                             break;
                         }
                     }
-                }
-                catch (ObjectDisposedException)
-                {
-                    DisconnectAsync();
-                }
-                catch (Exception ex)
-                {
-                    Debug.WriteLine($"{DateTime.Now} (ConnectAsync){ex.Message}");
+                    catch (Exception ex)
+                    {
+                        LogError($"(ConnectAsync) { ex.Message}");
+                        //DisconnectAsync();
+                    }
                 }
             });
             bool GetSocketStatus()
@@ -240,58 +195,46 @@ namespace RealtorServer.Model.NET
                     return true;
             }
         }
-        //Резервные методы - кандидаты на удаление
-        public async void ReceiveOverSocketAsync()
+        public async void DisconnectAsync()
         {
             await Task.Run(() =>
             {
-                IsConnected = true;
-                Int32 byteCount = 0;
                 try
                 {
-                    while (IsConnected)
-                    {
-                        if (socket.Poll(100000, SelectMode.SelectRead))
-                        {
-                            StringBuilder response = new StringBuilder();
-                            do
-                            {
-                                Byte[] buffer = new Byte[1024];
-                                byteCount = socket.Receive(buffer);
-                                String data = Encoding.UTF8.GetString(buffer);
-                                response.Append(data, 0, byteCount);
-                            }
-                            while (socket.Available > 0);
-                            GetOperationAsync(response.ToString(), byteCount);
-                        }
-                    }
+                    IsConnected = false;
+                    OutcomingOperations = new OperationQueue();
+                    Task.Delay(1000).Wait();
+                    socket.Shutdown(SocketShutdown.Both);
+                    stream.Close();
+                    stream.Dispose();
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(ReceiveDataAsync) {ex.Message}");
+                    LogError($"(DisconnectAsync) {ex.Message}");
                 }
                 finally
                 {
-                    LogInfo("has stopped");
+                    LogInfo("HAS DISCONNECTED");
+                    Disconnected?.Invoke(this, new DisconnectedEventArgs());
                 }
             });
         }
-        private void SendOverSocket()
+
+        private void LogInfo(String text)
         {
-            lock (socketSendLocker)
+            Debug.WriteLine($"{DateTime.Now} {IpAddress} {text}");
+            logger.Info(text);
+        }
+        private void LogError(String text)
+        {
+            Debug.WriteLine($"\n{DateTime.Now} ERROR {IpAddress} {text}\n");
+            logger.Error(text);
+        }
+        private void OnPropertyChanged([CallerMemberName] String prop = "")
+        {
+            if (PropertyChanged != null)
             {
-                try
-                {
-                    Operation operation = OutcomingOperations.Dequeue();
-                    String json = JsonSerializer.Serialize(operation);
-                    byte[] data = Encoding.UTF8.GetBytes(json);
-                    Int32 count = socket.Send(data);
-                    LogInfo($"sent {json}");
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(SendMessagesAsync) {ex.Message}");
-                }
+                PropertyChanged(this, new PropertyChangedEventArgs(prop));
             }
         }
     }
