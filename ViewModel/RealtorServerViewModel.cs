@@ -79,8 +79,16 @@ namespace RealtorServer.ViewModel
                             RealtyServer.IncomingOperations.Enqueue(operation);
                         else if (operation.Parameters.Direction == OperationDirection.Identity)
                             IdentityServer.IncomingOperations.Enqueue(operation);
-                        else if (operation.Parameters.Direction == OperationDirection.Realty && IdentityServer.CheckAccess(IPAddress.Parse(operation.IpAddress), operation.Token))
-                            RealtyServer.IncomingOperations.Enqueue(operation);
+                        else if (operation.Parameters.Direction == OperationDirection.Realty)
+                        {
+                            if (IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                                RealtyServer.IncomingOperations.Enqueue(operation);
+                            else
+                            {
+                                logger.Info($"ViewModel {operation.OperationNumber} security check failed");
+                                Debug.WriteLine($"{DateTime.Now} ViewModel {operation.OperationNumber} security check failed");
+                            }
+                        }
                         else
                         {
                             operation.IsSuccessfully = false;
@@ -90,7 +98,7 @@ namespace RealtorServer.ViewModel
                     catch (Exception ex)
                     {
                         logger.Error($"ViewModel(Handle) {ex.Message}");
-                        Debug.WriteLine($"ViewModel(Handle) {ex.Message}");
+                        Debug.WriteLine($"\n{DateTime.Now} ERROR ViewModel(Handle) {ex.Message}\n");
                         operation.IsSuccessfully = false;
                         Server.OutcomingOperations.Enqueue(operation);
                     }

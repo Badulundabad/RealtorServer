@@ -93,9 +93,9 @@ namespace RealtorServer.Model.NET
                                     expectedSize = Int32.Parse(parts[0]);
                                     response.Append(parts[1]);
                                 }
-                                else if (received.Contains("<EOF>"))
+                                else if (received.Contains("<<<<"))
                                 {
-                                    String[] parts = received.Split(new String[] { "<EOF>" }, StringSplitOptions.None);
+                                    String[] parts = received.Split(new String[] { "<<<<" }, StringSplitOptions.None);
                                     response.Append(parts[0]);
                                 }
                                 else response.Append(received);
@@ -161,7 +161,7 @@ namespace RealtorServer.Model.NET
                                 Name = "";
 
                             String json = JsonSerializer.Serialize(operation);
-                            Byte[] data = Encoding.UTF8.GetBytes($"{json.Length};{json}<EOF>");
+                            Byte[] data = Encoding.UTF8.GetBytes($"{json.Length};{json}<<<<");
 
                             socket.Send(data);
                             LogInfo($"has sent {json.Length} bytes");

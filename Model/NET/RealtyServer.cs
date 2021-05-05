@@ -111,7 +111,6 @@ namespace RealtorServer.Model.NET
         private void AddObject(Operation operation)
         {
             LogInfo($"{operation.OperationNumber} add");
-
             TargetType target = operation.Parameters.Target;
             if (target == TargetType.Flat)
                 AddFlat(operation);
@@ -145,7 +144,6 @@ namespace RealtorServer.Model.NET
             try
             {
                 Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
-                LogInfo($"{operation.OperationNumber} flat has deserialized");
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     if (newFlat.AlbumId > 0)
@@ -185,11 +183,16 @@ namespace RealtorServer.Model.NET
                     operation.IsSuccessfully = true;
                 }
                 else
+                {
+                    LogInfo($"{operation.OperationNumber} there is a flat with such address");
+                    operation.Data = null;
                     operation.IsSuccessfully = false;
+                }
             }
             catch (Exception ex)
             {
                 LogError($"(AddFlat) {ex.Message}");
+                operation.Data = null;
                 operation.IsSuccessfully = false;
             }
             finally

@@ -34,7 +34,7 @@ namespace RealtorServer.Model.NET
 
                     if (operation.Parameters.Type == OperationType.Login && credential != null)
                         Login(operation, credential);
-                    else if (operation.Parameters.Type == OperationType.Logout && CheckAccess(IPAddress.Parse(operation.IpAddress), operation.Token))
+                    else if (operation.Parameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
                         Logout(operation, credential);
                     else if (operation.Parameters.Type == OperationType.Register && credential == null)
                         Register(operation);
@@ -50,7 +50,7 @@ namespace RealtorServer.Model.NET
             {
                 //if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
                 //    LogoutPrevious(credential);
-                credential.IpAddress = IPAddress.Parse(operation.IpAddress);
+                credential.IpAddress = operation.IpAddress;
                 credential.Token = GetToken();
 
                 LogInfo($"{operation.IpAddress} has logged in as {credential.Name}");
@@ -134,18 +134,17 @@ namespace RealtorServer.Model.NET
 
         private Credential FindMatchingCredential(String name, String password)
         {
-            LogInfo($"{credentialContext.Credentials.Local[0].Name} {credentialContext.Credentials.Local[0].Password}");
             return credentialContext.Credentials.FirstOrDefault(cred =>
                                                                 cred.Name == name &&
                                                                 cred.Password == password);
         }
-        private Boolean CheckForLogin(IPAddress ipAddress, Guid token)
+        private Boolean CheckForLogin(String ipAddress, Guid token)
         {
             if (credentialContext.Credentials.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null)
                 return true;
             else return false;
         }
-        public Boolean CheckAccess(IPAddress ipAddress, Guid token)
+        public Boolean CheckAccess(String ipAddress, Guid token)
         {
             //if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null) return true;
             if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress) != null)
