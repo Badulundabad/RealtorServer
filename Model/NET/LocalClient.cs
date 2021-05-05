@@ -80,21 +80,38 @@ namespace RealtorServer.Model.NET
                         {
                             byte[] buffer = new byte[256];
                             StringBuilder response = new StringBuilder();
+                            Int32 expectedSize = 0;
 
                             do
                             {
                                 socket.Receive(buffer);
                                 String received = Encoding.UTF8.GetString(buffer);
-                                if (received.Contains("<EOF>"))
+
+                                if (expectedSize == 0)
                                 {
-                                    String[] ar = received.Split(new String[] { "<EOF>" }, StringSplitOptions.None);
-                                    response.Append(ar[0]);
+                                    String[] parts = received.Split(new String[] { ";" }, StringSplitOptions.None);
+                                    expectedSize = Int32.Parse(parts[0]);
+                                    response.Append(parts[1]);
+                                }
+                                else if (received.Contains("<EOF>"))
+                                {
+                                    String[] parts = received.Split(new String[] { "<EOF>" }, StringSplitOptions.None);
+                                    response.Append(parts[0]);
                                 }
                                 else response.Append(received);
                             }
                             while (socket.Available > 0);
-                            LogInfo($"has received {response.Length + 5}");
-                            HandleResponseAsync(response.ToString());
+
+                            if (response.Length == expectedSize)
+                            {
+                                LogInfo($"has received full data that equals {expectedSize} bytes");
+                                HandleResponseAsync(response.ToString());
+                            }
+                            else
+                            {
+                                LogInfo($"has received partial data that equals {response.Length} of {expectedSize} bytes");
+                                //отправить на повтор
+                            }
                         }
                         Task.Delay(10).Wait();
                     }
@@ -143,9 +160,11 @@ namespace RealtorServer.Model.NET
                             else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
                                 Name = "";
 
-                            Byte[] data = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(operation)+"<EOF>");
+                            String json = JsonSerializer.Serialize(operation);
+                            Byte[] data = Encoding.UTF8.GetBytes($"{json.Length};{json}<EOF>");
+
                             socket.Send(data);
-                            LogInfo($"has sent {data.Length} bytes");
+                            LogInfo($"has sent {json.Length} bytes");
                         }
                         catch (SocketException sockEx)
                         {
