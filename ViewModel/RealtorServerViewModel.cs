@@ -85,8 +85,8 @@ namespace RealtorServer.ViewModel
                                 RealtyServer.IncomingOperations.Enqueue(operation);
                             else
                             {
-                                logger.Info($"ViewModel {operation.OperationNumber} security check failed");
-                                Debug.WriteLine($"{DateTime.Now} ViewModel {operation.OperationNumber} security check failed");
+                                logger.Info($"ViewModel {operation.Number} security check failed");
+                                Debug.WriteLine($"{DateTime.Now} ViewModel {operation.Number} security check failed");
                             }
                         }
                         else

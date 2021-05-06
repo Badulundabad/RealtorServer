@@ -164,7 +164,7 @@ namespace RealtorServer.Model.NET
                             {
                                 if (operation.IsBroadcast)
                                 {
-                                    LogInfo($"has redirected {operation.OperationNumber} to broadcast");
+                                    LogInfo($"has redirected {operation.Number} to broadcast");
                                     foreach (LocalClient client in clients)
                                         client.OutcomingOperations.Enqueue(operation);
                                 }
@@ -172,11 +172,11 @@ namespace RealtorServer.Model.NET
                                     foreach (LocalClient client in clients)
                                         if (operation.IpAddress == client.IpAddress.ToString())
                                         {
-                                            LogInfo($"has redirected {operation.OperationNumber} to {operation.IpAddress}");
+                                            LogInfo($"has redirected {operation.Number} to {operation.IpAddress}");
                                             client.OutcomingOperations.Enqueue(operation);
                                         }
                             }
-                            else LogInfo($"hasn't find destination for {operation.OperationNumber}");
+                            else LogInfo($"hasn't find destination for {operation.Number}");
                         }
                         catch (Exception ex)
                         {

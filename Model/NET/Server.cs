@@ -84,12 +84,12 @@ namespace RealtorServer.Model.NET
         }
         protected void LogInfo(String text)
         {
-            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name} {text}");
+            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name}     {text}");
             logger.Info($"{this.GetType().Name} {text}");
         }
         protected void LogError(String text)
         {
-            Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name} {text}\n");
+            Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name}     {text}\n");
             logger.Error($"{this.GetType().Name} {text}");
         }
         protected void OnProperyChanged([CallerMemberName] string prop = null)

@@ -104,12 +104,11 @@ namespace RealtorServer.Model.NET
 
                             if (response.Length == expectedSize)
                             {
-                                LogInfo($"has received full data that equals {expectedSize} bytes");
-                                HandleResponseAsync(response.ToString());
+                                HandleResponseAsync(response.ToString(), expectedSize);
                             }
                             else
                             {
-                                LogInfo($"has received partial data that equals {response.Length} of {expectedSize} bytes");
+                                LogInfo($"RECEIVED WRONG BYTE COUNT: {response.Length} OF {expectedSize}");
                                 //отправить на повтор
                             }
                         }
@@ -118,28 +117,28 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(ReceiveOverStreamAsync) bytes {ex.Message}");
+                    LogError($"(ReceiveAsync) {ex.Message}");
                 }
                 finally
                 {
-                    LogInfo("has stopped");
+                    LogInfo("STOPPED");
                 }
             }));
         }
-        private async void HandleResponseAsync(String data)
+        private async void HandleResponseAsync(String data, int expectedSize)
         {
             await Task.Run(() =>
             {
                 try
                 {
                     Operation operation = JsonSerializer.Deserialize<Operation>(data);
-                    LogInfo($"{operation.OperationNumber} - {operation.Parameters.Type} {operation.Parameters.Target}");
+                    LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
                     operation.IpAddress = IpAddress.ToString();
                     OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(GetOperationAsync) {ex.Message}");
+                    LogError($"(HandleResponseAsync) {ex.Message}");
                 }
             });
         }
@@ -154,7 +153,6 @@ namespace RealtorServer.Model.NET
                         try
                         {
                             Operation operation = OutcomingOperations.Dequeue();
-                            LogInfo($"has started to send {operation.OperationNumber}");
                             if (operation.Parameters.Type == OperationType.Login && operation.IsSuccessfully)
                                 Name = operation.Name;
                             else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
@@ -164,7 +162,7 @@ namespace RealtorServer.Model.NET
                             Byte[] data = Encoding.UTF8.GetBytes($"{json.Length};{json}<<<<");
 
                             socket.Send(data);
-                            LogInfo($"has sent {json.Length} bytes");
+                            LogInfo($"SENT {json.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
                         }
                         catch (SocketException sockEx)
                         {
@@ -233,7 +231,7 @@ namespace RealtorServer.Model.NET
                 }
                 finally
                 {
-                    LogInfo("HAS DISCONNECTED");
+                    LogInfo("\nHAS DISCONNECTED\n");
                     Disconnected?.Invoke(this, new DisconnectedEventArgs());
                 }
             });
@@ -241,12 +239,12 @@ namespace RealtorServer.Model.NET
 
         private void LogInfo(String text)
         {
-            Debug.WriteLine($"{DateTime.Now} {IpAddress} {text}");
+            Debug.WriteLine($"{DateTime.Now} {IpAddress}     {text}");
             logger.Info(text);
         }
         private void LogError(String text)
         {
-            Debug.WriteLine($"\n{DateTime.Now} ERROR {IpAddress} {text}\n");
+            Debug.WriteLine($"\n{DateTime.Now} ERROR {IpAddress}     {text}\n");
             logger.Error(text);
         }
         private void OnPropertyChanged([CallerMemberName] String prop = "")

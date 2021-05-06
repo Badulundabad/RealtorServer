@@ -39,7 +39,7 @@ namespace RealtorServer.Model.NET
                     else if (operation.Parameters.Type == OperationType.Register && credential == null)
                         Register(operation);
                     else
-                        LogInfo($"something went wrong with {operation.OperationNumber}");
+                        LogInfo($"something went wrong with {operation.Number}");
                 }
             }
         }
