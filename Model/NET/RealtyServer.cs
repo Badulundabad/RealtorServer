@@ -85,8 +85,6 @@ namespace RealtorServer.Model.NET
             realtyDB.SaveChanges();
 
             Album album = new Album();
-            album.Serialize(list);
-            album.Deserialize();
         }
         private void ClearDB()
         {
@@ -116,7 +114,11 @@ namespace RealtorServer.Model.NET
                 AddFlat(operation);
             else if (target == TargetType.House)
                 AddHouse(operation);
+            else if (target == TargetType.Photo)
+                AddPhoto(operation);
         }
+
+
         private void ChangeObject(Operation operation)
         {
             LogInfo($"{operation.Number} change");
@@ -143,7 +145,8 @@ namespace RealtorServer.Model.NET
             LogInfo($"{operation.Number} add flat");
             try
             {
-                Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
+                String json = Encoding.UTF8.GetString(operation.Data);
+                Flat newFlat = JsonSerializer.Deserialize<Flat>(json);
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     if (newFlat.AlbumId > 0)
@@ -156,24 +159,11 @@ namespace RealtorServer.Model.NET
                         newFlat.Location.District = realtyDB.Districts.Find(newFlat.Location.DistrictId);
                     if (newFlat.Location.StreetId > 0)
                         newFlat.Location.Street = realtyDB.Streets.Find(newFlat.Location.StreetId);
+
                     newFlat.RegistrationDate = DateTime.Now;
                     newFlat.LastUpdateTime = DateTime.Now;
+
                     realtyDB.Flats.Local.Add(newFlat);
-
-                    if (!String.IsNullOrWhiteSpace(newFlat.Album.JsonPhotoArray))
-                    {
-                        List<Photo> photos = new List<Photo>();
-                        newFlat.Album.Deserialize();
-
-                        foreach (Byte[] data in newFlat.Album.PhotoCollection)
-                        {
-                            Photo photo = new Photo() { AlbumId = newFlat.Album.Id, Data = data };
-                            photos.Add(photo);
-                            realtyDB.Photos.Local.Add(photo);
-                        }
-                        newFlat.Album.UpdateKeys(photos);
-                    }
-
                     realtyDB.SaveChanges();
 
                     LogInfo($"{operation.IpAddress} has registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
@@ -191,7 +181,8 @@ namespace RealtorServer.Model.NET
             }
             catch (Exception ex)
             {
-                LogError($"(AddFlat) {ex.Message}");
+                LogError($"(AddFlat) {ex.Message}\n\n");
+                LogError($"(AddFlat) {Encoding.UTF8.GetString(operation.Data)}\n\n");
                 operation.Data = null;
                 operation.IsSuccessfully = false;
             }
@@ -225,6 +216,29 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 LogError($"(AddHouse) {ex.Message}");
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+            }
+        }
+        private void AddPhoto(Operation operation)
+        {
+            try
+            {
+                String[] data = (Encoding.UTF8.GetString(operation.Data)).Split(new String[] { "<GUID>" }, StringSplitOptions.None);
+                Photo photo = JsonSerializer.Deserialize<Photo>(data[1]);
+                realtyDB.Photos.Local.Add(photo);
+                realtyDB.SaveChanges();
+                operation.Data = Encoding.UTF8.GetBytes(data[0]);
+                operation.IsSuccessfully = true;
+                LogInfo($"SAVED A PHOTO {operation.Number}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"(AddPhoto) {ex.Message}\n\n");
+                operation.Data = null;
                 operation.IsSuccessfully = false;
             }
             finally
@@ -374,7 +388,7 @@ namespace RealtorServer.Model.NET
         }
         private void UpdateAlbum(BaseRealtorObject fromObject, BaseRealtorObject toObject)
         {
-            toObject.Album.Preview = fromObject.Album.Preview;
+            //toObject.Album.Preview = fromObject.Album.Preview;
             //toObject.Album.PhotoList = fromObject.Album.PhotoList;
         }
         private void UpdateCustomer(BaseRealtorObject fromObject, BaseRealtorObject toObject)
@@ -465,9 +479,9 @@ namespace RealtorServer.Model.NET
             if (realtyDB.Photos.Local.Count > 0)
             {
                 Operation operationWithPhotos = new Operation(operation.Name, operation.Token, operation.IpAddress, operation.Number);
-                operationWithPhotos.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.Album);
+                operationWithPhotos.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.Photo);
                 operationWithPhotos.Data = JsonSerializer.SerializeToUtf8Bytes(realtyDB.Photos.ToArray());
-                operationWithPhotos.Parameters.Target = TargetType.Album;
+                operationWithPhotos.Parameters.Target = TargetType.Photo;
                 operationWithPhotos.IsSuccessfully = true;
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operationWithPhotos));
             }
@@ -541,7 +555,7 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     DateTime lastUpdateTime = JsonSerializer.Deserialize<DateTime>(operation.Data);
-                    operation.Parameters.Target = TargetType.Album;
+                    operation.Parameters.Target = TargetType.Photo;
 
                     if (hasFlats)
                     {

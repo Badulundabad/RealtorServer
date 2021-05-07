@@ -76,43 +76,26 @@ namespace RealtorServer.Model.NET
                 {
                     while (IsConnected)
                     {
-                        if (socket.Available > 0)
+                        if (stream.DataAvailable)
                         {
-                            byte[] buffer = new byte[256];
+                            Byte[] buffer = new Byte[32];
+                            stream.Read(buffer, 0, 4);
+                            Int32 expectedSize = BitConverter.ToInt32(buffer, 0);
+                            Int32 bytesReceived = 0;
                             StringBuilder response = new StringBuilder();
-                            Int32 expectedSize = 0;
 
                             do
                             {
-                                socket.Receive(buffer);
-                                String received = Encoding.UTF8.GetString(buffer);
+                                bytesReceived += stream.Read(buffer, 0, buffer.Length);
+                                response.Append(Encoding.UTF8.GetString(buffer));
+                            }
+                            while (bytesReceived < expectedSize);
 
-                                if (expectedSize == 0)
-                                {
-                                    String[] parts = received.Split(new String[] { ";" }, StringSplitOptions.None);
-                                    expectedSize = Int32.Parse(parts[0]);
-                                    response.Append(parts[1]);
-                                }
-                                else if (received.Contains("<<<<"))
-                                {
-                                    String[] parts = received.Split(new String[] { "<<<<" }, StringSplitOptions.None);
-                                    response.Append(parts[0]);
-                                }
-                                else response.Append(received);
-                            }
-                            while (socket.Available > 0);
-
-                            if (response.Length == expectedSize)
-                            {
-                                HandleResponseAsync(response.ToString(), expectedSize);
-                            }
-                            else
-                            {
-                                LogInfo($"RECEIVED WRONG BYTE COUNT: {response.Length} OF {expectedSize}");
-                                //отправить на повтор
-                            }
+                            HandleResponseAsync(response.ToString(), expectedSize);
+                            response.Length = 0;
+                            response.Capacity = 0;
+                            GC.Collect();
                         }
-                        Task.Delay(10).Wait();
                     }
                 }
                 catch (Exception ex)
@@ -131,10 +114,15 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    Operation operation = JsonSerializer.Deserialize<Operation>(data);
-                    LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
-                    operation.IpAddress = IpAddress.ToString();
-                    OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
+                    data = data.Split('#')[1];
+                    if (data.Length + 2 == expectedSize)
+                    {
+                        Operation operation = JsonSerializer.Deserialize<Operation>(data);
+                        LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
+                        operation.IpAddress = IpAddress.ToString();
+                        OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
+                    }
+                    else LogInfo($"RECEIVED WRONG BYTE COUNT: {data.Length} OF {expectedSize}\n{data}");
                 }
                 catch (Exception ex)
                 {
@@ -157,11 +145,13 @@ namespace RealtorServer.Model.NET
                                 Name = operation.Name;
                             else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
                                 Name = "";
+                            operation.Number = Guid.NewGuid();
+                            String json = "#" + JsonSerializer.Serialize(operation) + "#";
+                            Byte[] data = Encoding.UTF8.GetBytes(json);
+                            Byte[] dataSize = BitConverter.GetBytes(data.Length);
 
-                            String json = JsonSerializer.Serialize(operation);
-                            Byte[] data = Encoding.UTF8.GetBytes($"{json.Length};{json}<<<<");
-
-                            socket.Send(data);
+                            stream.Write(dataSize, 0, 4);
+                            stream.Write(data, 0, data.Length);
                             LogInfo($"SENT {json.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
                         }
                         catch (SocketException sockEx)
@@ -172,7 +162,7 @@ namespace RealtorServer.Model.NET
                         {
                             LogError($"(SendAsync) {ex.Message}");
                         }
-                        Task.Delay(500).Wait();
+                        Task.Delay(100).Wait();
                     }
                 }
             });
