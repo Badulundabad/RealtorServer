@@ -117,8 +117,6 @@ namespace RealtorServer.Model.NET
             else if (target == TargetType.Photo)
                 AddPhoto(operation);
         }
-
-
         private void ChangeObject(Operation operation)
         {
             LogInfo($"{operation.Number} change");
@@ -145,8 +143,7 @@ namespace RealtorServer.Model.NET
             LogInfo($"{operation.Number} add flat");
             try
             {
-                String json = Encoding.UTF8.GetString(operation.Data);
-                Flat newFlat = JsonSerializer.Deserialize<Flat>(json);
+                Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
                 if (!FindDuplicate(TargetType.Flat, newFlat.Location))
                 {
                     if (newFlat.AlbumId > 0)
@@ -168,7 +165,7 @@ namespace RealtorServer.Model.NET
 
                     LogInfo($"{operation.IpAddress} has registered a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
 
-                    operation.Data = JsonSerializer.SerializeToUtf8Bytes(newFlat);
+                    operation.Data = JsonSerializer.Serialize(newFlat);
                     operation.IsBroadcast = true;
                     operation.IsSuccessfully = true;
                 }
@@ -182,40 +179,8 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 LogError($"(AddFlat) {ex.Message}\n\n");
-                LogError($"(AddFlat) {Encoding.UTF8.GetString(operation.Data)}\n\n");
+                LogError($"(AddFlat) {operation.Data}\n\n");
                 operation.Data = null;
-                operation.IsSuccessfully = false;
-            }
-            finally
-            {
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
-            }
-        }
-        private void AddHouse(Operation operation)
-        {
-            LogInfo($"{operation.Number} add house");
-
-            try
-            {
-                House newHouse = JsonSerializer.Deserialize<House>(operation.Data);
-                if (!FindDuplicate(TargetType.House, newHouse.Location))
-                {
-                    //добавить в бд
-                    realtyDB.Houses.Local.Add(newHouse);
-                    realtyDB.SaveChanges();
-                    LogInfo($"{operation.IpAddress} has registered a house {newHouse.Location.City.Name} {newHouse.Location.District.Name} {newHouse.Location.Street.Name} {newHouse.Location.HouseNumber}");
-
-                    //отправить всем клиентам обновление
-                    operation.Data = JsonSerializer.SerializeToUtf8Bytes(newHouse);
-                    operation.IsBroadcast = true;
-                    operation.IsSuccessfully = true;
-                }
-                else
-                    operation.IsSuccessfully = false;
-            }
-            catch (Exception ex)
-            {
-                LogError($"(AddHouse) {ex.Message}");
                 operation.IsSuccessfully = false;
             }
             finally
@@ -227,11 +192,11 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                String[] data = (Encoding.UTF8.GetString(operation.Data)).Split(new String[] { "<GUID>" }, StringSplitOptions.None);
+                String[] data = operation.Data.Split(new String[] { "<GUID>" }, StringSplitOptions.None);
                 Photo photo = JsonSerializer.Deserialize<Photo>(data[1]);
                 realtyDB.Photos.Local.Add(photo);
                 realtyDB.SaveChanges();
-                operation.Data = Encoding.UTF8.GetBytes(data[0]);
+                operation.Data = data[0];
                 operation.IsSuccessfully = true;
                 LogInfo($"SAVED A PHOTO {operation.Number}");
             }
@@ -260,7 +225,7 @@ namespace RealtorServer.Model.NET
                     realtyDB.SaveChanges();
                     LogInfo($"{operation.IpAddress} has changed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
 
-                    operation.Data = JsonSerializer.SerializeToUtf8Bytes(updFlat);
+                    operation.Data = JsonSerializer.Serialize(updFlat);
                     operation.IsBroadcast = true;
                     operation.IsSuccessfully = true;
                 }
@@ -269,36 +234,6 @@ namespace RealtorServer.Model.NET
             catch (Exception ex)
             {
                 LogError($"(ChangeFlat) {ex.Message}");
-                operation.IsSuccessfully = false;
-            }
-            finally
-            {
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
-            }
-        }
-        private void ChangeHouse(Operation operation)
-        {
-            LogInfo($"{operation.Number} change house");
-            try
-            {
-                House updHouse = JsonSerializer.Deserialize<House>(operation.Data);
-                House dbHouse = realtyDB.Houses.Find(updHouse.Id);
-                if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent)
-                {
-                    UpdateProperties(updHouse, dbHouse, operation);
-                    dbHouse.LastUpdateTime = DateTime.Now;
-                    realtyDB.SaveChanges();
-                    LogInfo($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
-
-                    operation.Data = JsonSerializer.SerializeToUtf8Bytes(updHouse);
-                    operation.IsBroadcast = true;
-                    operation.IsSuccessfully = true;
-                }
-                else operation.IsSuccessfully = false;
-            }
-            catch (Exception ex)
-            {
-                LogError($"(ChangeHouse) {ex.Message}");
                 operation.IsSuccessfully = false;
             }
             finally
@@ -335,35 +270,80 @@ namespace RealtorServer.Model.NET
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
             }
         }
-        private void RemoveHouse(Operation operation)
+
+        private void SendUpdate(Operation operation)
         {
-            LogInfo($"{operation.Number} remove house");
+            SendFullUpdate(operation);
+            SendAllPhotosAsync(operation);
+            SendUpdateCompleteMessage(operation);
+        }
+        private void SendFullUpdate(Operation operation)
+        {
             try
             {
-                House dbHouse = realtyDB.Houses.Find(operation.Data);
-                if (dbHouse != null && operation.Name == dbHouse.Agent)
+                StringBuilder updateString = new StringBuilder();
+                if (realtyDB.Flats.Local.Count > 0)
                 {
-                    realtyDB.Houses.Remove(dbHouse);
-                    realtyDB.SaveChanges();
-
-                    LogInfo($"{operation.IpAddress} has removed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
-
-                    operation.IsSuccessfully = true;
-                    operation.Parameters.Type = OperationType.Remove;
-                    operation.IsBroadcast = true;
+                    Flat[] flats = realtyDB.Flats.ToArray();
+                    LogInfo($"PREPARED {flats.Length} FLATS {operation.Number}");
+                    updateString.Append($"{JsonSerializer.Serialize(flats)}");
                 }
-                else operation.IsSuccessfully = false;
+                else LogInfo($"THERE IS NO FLATS {operation.Number}");
+                updateString.Append("<FLATS>");
+
+                //if (realtyDB.Houses.Local.Count > 0)
+                //{
+                //    House[] houses = realtyDB.Houses.ToArray();
+                //    LogInfo($"PREPARED {houses.Length} HOUSES {operation.Number}");
+                //    updateString.Append($"{JsonSerializer.Serialize(houses)}");
+                //}
+                //updateString.Append("<HOUSES>");
+
+                operation.Data = updateString.ToString();
+                operation.Parameters.Target = TargetType.All;
+                operation.IsSuccessfully = true;
+
+                LogInfo($"UPDATE HAS PREPARED {operation.Number} {operation.Parameters.Target}");
             }
             catch (Exception ex)
             {
-                LogError($"(RemoveHouse) {ex.Message}");
+                LogError($"(SendFullUpdate) {ex.Message}");
                 operation.IsSuccessfully = false;
             }
             finally
             {
+                LogInfo($"UPDATE HAS PREPARED {operation.Number} {operation.Parameters.Target}");
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
             }
         }
+        private void SendAllPhotosAsync(Operation operation)
+        {
+            if (realtyDB.Photos.Local.Count > 0)
+            {
+                Operation operationWithPhotos = new Operation(operation.Name, operation.Token, operation.IpAddress, operation.Number);
+                operationWithPhotos.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.Photo);
+
+                String json = JsonSerializer.Serialize(realtyDB.Photos.ToArray());
+                operationWithPhotos.Data = json;
+                operationWithPhotos.Parameters.Target = TargetType.Photo;
+                operationWithPhotos.IsSuccessfully = true;
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operationWithPhotos));
+            }
+        }
+        private void SendUpdateCompleteMessage(Operation operation)
+        {
+            Operation finalOperation = new Operation(operation.Name, operation.Token, operation.IpAddress, operation.Number);
+            finalOperation.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.None);
+            finalOperation.IsSuccessfully = true;
+            finalOperation.IsBroadcast = false;
+            finalOperation.Data = "completed";
+            LogInfo($"has handled {finalOperation.Number} successfully");
+            OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(finalOperation));
+        }
+
+
+
+
 
         private void UpdateProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation)
         {
@@ -428,75 +408,97 @@ namespace RealtorServer.Model.NET
             toObject.Location.HasBanner = fromObject.Location.HasBanner;
             toObject.Location.HasExchange = fromObject.Location.HasExchange;
         }
+        private void AddHouse(Operation operation)
+        {
+            LogInfo($"{operation.Number} add house");
 
-        private void SendUpdate(Operation operation)
-        {
-            SendFullUpdate(operation);
-            SendAllPhotosAsync(operation);
-            SendUpdateCompleteMessage(operation);
-        }
-        private void SendFullUpdate(Operation operation)
-        {
             try
             {
-                StringBuilder updateString = new StringBuilder();
-                if (realtyDB.Flats.Local.Count > 0)
+                House newHouse = JsonSerializer.Deserialize<House>(operation.Data);
+                if (!FindDuplicate(TargetType.House, newHouse.Location))
                 {
-                    Flat[] flats = realtyDB.Flats.ToArray();
-                    LogInfo($"PREPARED {flats.Length} FLATS {operation.Number}");
-                    updateString.Append($"{JsonSerializer.Serialize(flats)}");
+                    //добавить в бд
+                    realtyDB.Houses.Local.Add(newHouse);
+                    realtyDB.SaveChanges();
+                    LogInfo($"{operation.IpAddress} has registered a house {newHouse.Location.City.Name} {newHouse.Location.District.Name} {newHouse.Location.Street.Name} {newHouse.Location.HouseNumber}");
+
+                    //отправить всем клиентам обновление
+                    operation.Data = JsonSerializer.Serialize(newHouse);
+                    operation.IsBroadcast = true;
+                    operation.IsSuccessfully = true;
                 }
-                else LogInfo($"THERE IS NO FLATS {operation.Number}");
-                updateString.Append("<FLATS>");
-
-                if (realtyDB.Houses.Local.Count > 0)
-                {
-                    House[] houses = realtyDB.Houses.ToArray();
-                    LogInfo($"PREPARED {houses.Length} HOUSES {operation.Number}");
-                    updateString.Append($"{JsonSerializer.Serialize(houses)}");
-                }
-                updateString.Append("<HOUSES>");
-
-                operation.Data = Encoding.UTF8.GetBytes(updateString.ToString());
-                operation.Parameters.Target = TargetType.All;
-                operation.IsSuccessfully = true;
-
-                LogInfo($"UPDATE HAS PREPARED {operation.Number} {operation.Parameters.Target}");
+                else
+                    operation.IsSuccessfully = false;
             }
             catch (Exception ex)
             {
-                LogError($"(SendFullUpdate) {ex.Message}");
+                LogError($"(AddHouse) {ex.Message}");
                 operation.IsSuccessfully = false;
             }
             finally
             {
-                LogInfo($"UPDATE HAS PREPARED {operation.Number} {operation.Parameters.Target}");
                 OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
             }
         }
-        private void SendAllPhotosAsync(Operation operation)
+        private void ChangeHouse(Operation operation)
         {
-            if (realtyDB.Photos.Local.Count > 0)
+            LogInfo($"{operation.Number} change house");
+            try
             {
-                Operation operationWithPhotos = new Operation(operation.Name, operation.Token, operation.IpAddress, operation.Number);
-                operationWithPhotos.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.Photo);
-                operationWithPhotos.Data = JsonSerializer.SerializeToUtf8Bytes(realtyDB.Photos.ToArray());
-                operationWithPhotos.Parameters.Target = TargetType.Photo;
-                operationWithPhotos.IsSuccessfully = true;
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operationWithPhotos));
+                House updHouse = JsonSerializer.Deserialize<House>(operation.Data);
+                House dbHouse = realtyDB.Houses.Find(updHouse.Id);
+                if (dbHouse != null && updHouse != null && operation.Name == dbHouse.Agent)
+                {
+                    UpdateProperties(updHouse, dbHouse, operation);
+                    dbHouse.LastUpdateTime = DateTime.Now;
+                    realtyDB.SaveChanges();
+                    LogInfo($"{operation.IpAddress} has changed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
+
+                    //operation.Data = JsonSerializer.SerializeToUtf8Bytes(updHouse);
+                    operation.IsBroadcast = true;
+                    operation.IsSuccessfully = true;
+                }
+                else operation.IsSuccessfully = false;
+            }
+            catch (Exception ex)
+            {
+                LogError($"(ChangeHouse) {ex.Message}");
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
             }
         }
-        private void SendUpdateCompleteMessage(Operation operation)
+        private void RemoveHouse(Operation operation)
         {
-            Operation finalOperation = new Operation(operation.Name, operation.Token, operation.IpAddress, operation.Number);
-            finalOperation.Parameters = new OperationParameters(OperationDirection.Realty, OperationType.Update, TargetType.None);
-            finalOperation.IsSuccessfully = true;
-            finalOperation.IsBroadcast = false;
-            finalOperation.Data = Encoding.UTF8.GetBytes("completed");
-            LogInfo($"has handled {finalOperation.Number} successfully");
-            OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(finalOperation));
-        }
+            LogInfo($"{operation.Number} remove house");
+            try
+            {
+                House dbHouse = realtyDB.Houses.Find(operation.Data);
+                if (dbHouse != null && operation.Name == dbHouse.Agent)
+                {
+                    realtyDB.Houses.Remove(dbHouse);
+                    realtyDB.SaveChanges();
 
+                    LogInfo($"{operation.IpAddress} has removed a house {dbHouse.Location.City} {dbHouse.Location.District} {dbHouse.Location.Street} {dbHouse.Location.HouseNumber}");
+
+                    operation.IsSuccessfully = true;
+                    operation.Parameters.Type = OperationType.Remove;
+                    operation.IsBroadcast = true;
+                }
+                else operation.IsSuccessfully = false;
+            }
+            catch (Exception ex)
+            {
+                LogError($"(RemoveHouse) {ex.Message}");
+                operation.IsSuccessfully = false;
+            }
+            finally
+            {
+                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+            }
+        }
         private void SendPartialUpdate(Operation operation)
         {
             try
@@ -514,7 +516,7 @@ namespace RealtorServer.Model.NET
                     dbObjects[1] = JsonSerializer.Serialize(houses);
                 }
 
-                operation.Data = JsonSerializer.SerializeToUtf8Bytes(dbObjects);
+                operation.Data = JsonSerializer.Serialize(dbObjects);
                 operation.IsSuccessfully = true;
                 operation.Parameters.Target = TargetType.All;
 
@@ -535,7 +537,7 @@ namespace RealtorServer.Model.NET
             DateTime lastUpdateTime = JsonSerializer.Deserialize<DateTime>(operation.Data);
 
             Flat[] missingFlats = realtyDB.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
-            operation.Data = JsonSerializer.SerializeToUtf8Bytes(missingFlats);
+            operation.Data = JsonSerializer.Serialize(missingFlats);
             operation.Parameters.Target = TargetType.Flat;
             OutcomingOperations.Enqueue(operation);
         }
@@ -544,7 +546,7 @@ namespace RealtorServer.Model.NET
             DateTime lastUpdateTime = JsonSerializer.Deserialize<DateTime>(operation.Data);
 
             House[] missingHouses = realtyDB.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
-            operation.Data = JsonSerializer.SerializeToUtf8Bytes(missingHouses);
+            operation.Data = JsonSerializer.Serialize(missingHouses);
             operation.Parameters.Target = TargetType.House;
             OutcomingOperations.Enqueue(operation);
         }
@@ -562,7 +564,7 @@ namespace RealtorServer.Model.NET
                         Flat[] missingFlats = realtyDB.Flats.AsNoTracking().Where(flat => flat.LastUpdateTime >= lastUpdateTime).ToArray();
                         foreach (Flat flat in missingFlats)
                         {
-                            operation.Data = JsonSerializer.SerializeToUtf8Bytes(flat.Album);
+                            operation.Data = JsonSerializer.Serialize(flat.Album);
                             OutcomingOperations.Enqueue(operation);
                         }
                     }
@@ -571,7 +573,7 @@ namespace RealtorServer.Model.NET
                         House[] missingHouses = realtyDB.Houses.AsNoTracking().Where(house => house.LastUpdateTime >= lastUpdateTime).ToArray();
                         foreach (House house in missingHouses)
                         {
-                            operation.Data = JsonSerializer.SerializeToUtf8Bytes(house.Album);
+                            operation.Data = JsonSerializer.Serialize(house.Album);
                             OutcomingOperations.Enqueue(operation);
                         }
                     }

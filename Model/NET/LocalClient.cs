@@ -11,6 +11,7 @@ using NLog;
 using RealtorServer.Model.Event;
 using static RealtorServer.Model.Event.EventHandlers;
 using System.Text.Json;
+using System.Windows;
 
 namespace RealtorServer.Model.NET
 {
@@ -78,12 +79,13 @@ namespace RealtorServer.Model.NET
                     {
                         if (stream.DataAvailable)
                         {
-                            Byte[] buffer = new Byte[32];
+                            Byte[] buffer = new Byte[4];
                             stream.Read(buffer, 0, 4);
                             Int32 expectedSize = BitConverter.ToInt32(buffer, 0);
                             Int32 bytesReceived = 0;
                             StringBuilder response = new StringBuilder();
 
+                            buffer = new byte[8];
                             do
                             {
                                 bytesReceived += stream.Read(buffer, 0, buffer.Length);
@@ -91,7 +93,8 @@ namespace RealtorServer.Model.NET
                             }
                             while (bytesReceived < expectedSize);
 
-                            HandleResponseAsync(response.ToString(), expectedSize);
+                            String s = response.ToString().Split('#')[1];
+                            HandleResponseAsync(s, expectedSize);
                             response.Length = 0;
                             response.Capacity = 0;
                             GC.Collect();
@@ -114,15 +117,16 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    data = data.Split('#')[1];
+                    Operation operation = JsonSerializer.Deserialize<Operation>(data);
+                    operation.IpAddress = IpAddress.ToString();
                     if (data.Length + 2 == expectedSize)
-                    {
-                        Operation operation = JsonSerializer.Deserialize<Operation>(data);
                         LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
-                        operation.IpAddress = IpAddress.ToString();
-                        OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
+                    else
+                    {
+                        LogInfo($"RECEIVED WRONG BYTE COUNT: data - {data.Length} OF {expectedSize}");
+                        LogInfo($"{data}");
                     }
-                    else LogInfo($"RECEIVED WRONG BYTE COUNT: {data.Length} OF {expectedSize}\n{data}");
+                    OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
                 }
                 catch (Exception ex)
                 {
@@ -145,7 +149,7 @@ namespace RealtorServer.Model.NET
                                 Name = operation.Name;
                             else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
                                 Name = "";
-                            operation.Number = Guid.NewGuid();
+                            operation.Number = (Guid.NewGuid()).ToString();
                             String json = "#" + JsonSerializer.Serialize(operation) + "#";
                             Byte[] data = Encoding.UTF8.GetBytes(json);
                             Byte[] dataSize = BitConverter.GetBytes(data.Length);

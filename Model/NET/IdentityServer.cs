@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Text;
@@ -30,7 +31,7 @@ namespace RealtorServer.Model.NET
                 if (IncomingOperations != null && IncomingOperations.Count > 0)
                 {
                     Operation operation = IncomingOperations.Dequeue();
-                    Credential credential = FindMatchingCredential(operation.Name, JsonSerializer.Deserialize<String>(operation.Data));
+                    Credential credential = FindMatchingCredential(operation.Name, operation.Data);
 
                     if (operation.Parameters.Type == OperationType.Login && credential != null)
                         Login(operation, credential);
@@ -55,7 +56,7 @@ namespace RealtorServer.Model.NET
 
                 LogInfo($"{operation.IpAddress} has logged in as {credential.Name}");
 
-                operation.Data = Encoding.UTF8.GetBytes(credential.Token.ToString());
+                operation.Data = credential.Token.ToString();
                 operation.IsSuccessfully = true;
             }
             catch (Exception ex)
@@ -74,7 +75,7 @@ namespace RealtorServer.Model.NET
             try
             {
                 credential.IpAddress = null;
-                credential.Token = Guid.Empty;
+                credential.Token = (new Guid().ToString());
                 LogInfo($"{credential.Name} has logged out");
                 operation.IsSuccessfully = true;
             }
@@ -92,7 +93,7 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(Encoding.UTF8.GetString(operation.Data)))
+                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
                 {
                     Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
                     credential.RegistrationDate = DateTime.Now;
@@ -129,7 +130,7 @@ namespace RealtorServer.Model.NET
                 IsSuccessfully = true
             }));
             credential.IpAddress = null;
-            credential.Token = Guid.Empty;
+            credential.Token = (new Guid()).ToString();
         }
 
         private Credential FindMatchingCredential(String name, String password)
@@ -138,22 +139,22 @@ namespace RealtorServer.Model.NET
                                                                 cred.Name == name &&
                                                                 cred.Password == password);
         }
-        private Boolean CheckForLogin(String ipAddress, Guid token)
+        private Boolean CheckForLogin(String ipAddress, String token)
         {
             if (credentialContext.Credentials.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null)
                 return true;
             else return false;
         }
-        public Boolean CheckAccess(String ipAddress, Guid token)
+        public Boolean CheckAccess(String ipAddress, String token)
         {
             //if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null) return true;
             if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress) != null)
                 return true;
             else return false;
         }
-        private Guid GetToken()
+        private String GetToken()
         {
-            return new Guid();
+            return (new Guid()).ToString();
             //return new Guid().ToString();
         }
     }
