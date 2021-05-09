@@ -12,6 +12,7 @@ using RealtorServer.Model.Event;
 using static RealtorServer.Model.Event.EventHandlers;
 using System.Text.Json;
 using System.Windows;
+using RealtyModel.Model.Operations;
 
 namespace RealtorServer.Model.NET
 {
@@ -120,7 +121,7 @@ namespace RealtorServer.Model.NET
                     Operation operation = JsonSerializer.Deserialize<Operation>(data);
                     operation.IpAddress = IpAddress.ToString();
                     if (data.Length + 2 == expectedSize)
-                        LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
+                        LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                     else
                     {
                         LogInfo($"RECEIVED WRONG BYTE COUNT: data - {data.Length} OF {expectedSize}");
@@ -145,9 +146,9 @@ namespace RealtorServer.Model.NET
                         try
                         {
                             Operation operation = OutcomingOperations.Dequeue();
-                            if (operation.Parameters.Type == OperationType.Login && operation.IsSuccessfully)
+                            if (operation.Parameters.Action == Act.Login && operation.IsSuccessfully)
                                 Name = operation.Name;
-                            else if (operation.Parameters.Type == OperationType.Logout && operation.IsSuccessfully)
+                            else if (operation.Parameters.Action == Act.Logout && operation.IsSuccessfully)
                                 Name = "";
                             operation.Number = (Guid.NewGuid()).ToString();
                             String json = "#" + JsonSerializer.Serialize(operation) + "#";
@@ -156,7 +157,7 @@ namespace RealtorServer.Model.NET
 
                             stream.Write(dataSize, 0, 4);
                             stream.Write(data, 0, data.Length);
-                            LogInfo($"SENT {json.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Type} {operation.Parameters.Target}");
+                            LogInfo($"SENT {json.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                         }
                         catch (SocketException sockEx)
                         {

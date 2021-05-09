@@ -8,6 +8,7 @@ using RealtyModel.Model;
 using NLog;
 using System.Diagnostics;
 using System.Linq;
+using RealtyModel.Model.Operations;
 
 namespace RealtorServer.Model.NET
 {

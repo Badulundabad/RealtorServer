@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
+using RealtyModel.Model.Operations;
 using RealtyModel.Service;
 using static RealtorServer.Model.Event.EventHandlers;
 
@@ -33,11 +34,11 @@ namespace RealtorServer.Model.NET
                     Operation operation = IncomingOperations.Dequeue();
                     Credential credential = FindMatchingCredential(operation.Name, operation.Data);
 
-                    if (operation.Parameters.Type == OperationType.Login && credential != null)
+                    if (operation.Parameters.Action == Act.Login && credential != null)
                         Login(operation, credential);
-                    else if (operation.Parameters.Type == OperationType.Logout && CheckAccess(operation.IpAddress, operation.Token))
+                    else if (operation.Parameters.Action== Act.Logout && CheckAccess(operation.IpAddress, operation.Token))
                         Logout(operation, credential);
-                    else if (operation.Parameters.Type == OperationType.Register && credential == null)
+                    else if (operation.Parameters.Action == Act.Register && credential == null)
                         Register(operation);
                     else
                         LogInfo($"something went wrong with {operation.Number}");
@@ -124,7 +125,7 @@ namespace RealtorServer.Model.NET
             OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(new Operation()
             {
                 IpAddress = credential.IpAddress.ToString(),
-                Parameters = new OperationParameters() { Direction = OperationDirection.Identity, Type = OperationType.Logout },
+                Parameters = new Parameters() { Direction = Direction.Identity, Action = Act.Logout },
                 Name = credential.Name,
                 Token = credential.Token,
                 IsSuccessfully = true

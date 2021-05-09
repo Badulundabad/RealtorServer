@@ -1,4 +1,5 @@
 ﻿using RealtyModel.Model;
+using RealtyModel.Model.Operations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,15 +12,15 @@ namespace RealtorServer.Model.Event
     {
         public object Data { get; set; }
         public Boolean IsSuccessfully { get; set; }
-        public OperationDirection Direction { get => OperationDirection.Identity; }
-        public OperationType OperationType { get; set; }
-        public TargetType Target { get => TargetType.Agent; }
+        public Direction Direction { get => Direction.Identity; }
+        public Act Action { get; set; }
+        public Target Target { get => Target.Agent; }
 
-        public CredentialHandledEventArgs(object data, Boolean isSuccessfully, OperationType operationType)
+        public CredentialHandledEventArgs(object data, Boolean isSuccessfully, Act action)
         {
             Data = data;
             IsSuccessfully = isSuccessfully;
-            OperationType = operationType;
+            Action = action;
         }
     }
 }
