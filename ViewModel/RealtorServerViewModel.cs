@@ -13,6 +13,13 @@ using NLog;
 using System.Diagnostics;
 using System.Net;
 using RealtyModel.Model.Operations;
+using RealtorServer.Model.DataBase;
+using RealtyModel.Model.Derived;
+using System.Text.Json;
+using RealtyModel.Model.Base;
+using RealtyModel.Model.RealtyObjects;
+using System.Data.Entity;
+using System.Windows;
 
 namespace RealtorServer.ViewModel
 {
@@ -43,6 +50,8 @@ namespace RealtorServer.ViewModel
         public RealtorServerViewModel()
         {
             InitializeMembers();
+            TestFillDB(context);
+
             RunCommand = new CustomCommand((obj) =>
             {
                 IsRunning = true;
@@ -109,6 +118,111 @@ namespace RealtorServer.ViewModel
         private void OnPropertyChanged([CallerMemberName] String prop = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
+        }
+
+
+
+        private void TestFillDB(RealtyContext context)
+        {
+            RealtyContext context = new RealtyContext();
+            String s = JsonSerializer.Serialize(new byte[200000]);
+            Flat flat = new Flat()
+            {
+                Agent = "asd",
+                Album = new Album()
+                {
+                    Location = "asdas",
+                    PhotoKeys = "asd",
+                    PreviewJson = s
+                },
+                HasAlbumChanges = false,
+                Cost = new Cost()
+                {
+                    Area = 100,
+                    HasMortgage = false,
+                    HasPercents = false,
+                    HasVAT = false,
+                    Price = 10000000
+                },
+                Customer = new Customer()
+                {
+                    Name = "asdsa",
+                    PhoneNumbers = "123241324"
+                },
+                GeneralInfo = new BaseInfo()
+                {
+                    Ceiling = 100,
+                    Condition = "asdas",
+                    Convenience = "asdsa",
+                    Description = "asdasd",
+                    General = 1231,
+                    Heating = "asdad",
+                    Kitchen = 123421,
+                    Living = 13241,
+                    RoomCount = 123,
+                    Water = "asdasd",
+                    Year = 123
+                },
+                HasBaseChanges = false,
+                HasCustomerChanges = false,
+                HasExclusive = false,
+                HasLocationChanges = false,
+                Info = new FlatInfo()
+                {
+                    Balcony = "12312",
+                    Bath = "sadad",
+                    Bathroom = "asdasd",
+                    Floor = "asdsad",
+                    Fund = "asdasd",
+                    HasChute = false,
+                    HasElevator = false,
+                    HasGarage = false,
+                    HasImprovedLayout = false,
+                    HasRenovation = false,
+                    IsCorner = false,
+                    IsPrivatised = false,
+                    IsSeparated = false,
+                    Kvl = 12312,
+                    Loggia = "asdasd",
+                    Material = "asdasd",
+                    Rooms = "asdasads",
+                    Type = "asdasd",
+                    TypeOfRooms = "asdasd",
+                    Windows = "asdasd"
+                },
+                IsSold = false,
+                LastUpdateTime = DateTime.Now,
+                Location = new Location()
+                {
+                    City = new City()
+                    {
+                        Name = "asdasd"
+                    },
+                    District = new District()
+                    {
+                        Name = "adssa"
+                    },
+                    Street = new Street()
+                    {
+                        Name = "asdasd",
+                    },
+                    FlatNumber = 1,
+                    HouseNumber = 123,
+                    HasBanner = false,
+                    HasExchange = false
+                },
+                RegistrationDate = DateTime.Now,
+                Status = Status.Active,
+                Type = Target.Flat
+            };
+            Flat[] flats = new Flat[3000];
+            for (Int32 i = 0; i < 3000; i++)
+            {
+                context.Flats.Add(flat);
+                context.SaveChanges();
+            }
+                context.Flats.Load();
+                ObservableCollection<Flat> flats1 = context.Flats.Local;                
         }
     }
 }

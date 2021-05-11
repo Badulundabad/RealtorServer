@@ -9,9 +9,7 @@ using System.Threading.Tasks;
 using RealtyModel.Model;
 using NLog;
 using RealtorServer.Model.Event;
-using static RealtorServer.Model.Event.EventHandlers;
 using System.Text.Json;
-using System.Windows;
 using RealtyModel.Model.Operations;
 
 namespace RealtorServer.Model.NET

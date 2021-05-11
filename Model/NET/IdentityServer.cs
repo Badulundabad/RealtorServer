@@ -6,10 +6,10 @@ using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
+using RealtorServer.Model.Event;
 using RealtyModel.Model;
 using RealtyModel.Model.Operations;
 using RealtyModel.Service;
-using static RealtorServer.Model.Event.EventHandlers;
 
 namespace RealtorServer.Model.NET
 {
@@ -105,8 +105,7 @@ namespace RealtorServer.Model.NET
 
                     operation.IsSuccessfully = true;
                 }
-                else
-                    operation.IsSuccessfully = false;
+                else operation.IsSuccessfully = false;
             }
             catch (Exception ex)
             {
