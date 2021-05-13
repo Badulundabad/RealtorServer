@@ -50,7 +50,7 @@ namespace RealtorServer.ViewModel
         public RealtorServerViewModel()
         {
             InitializeMembers();
-            TestFillDB(context);
+            TestFillDB();
 
             RunCommand = new CustomCommand((obj) =>
             {
@@ -122,7 +122,7 @@ namespace RealtorServer.ViewModel
 
 
 
-        private void TestFillDB(RealtyContext context)
+        private void TestFillDB()
         {
             RealtyContext context = new RealtyContext();
             String s = JsonSerializer.Serialize(new byte[200000]);
