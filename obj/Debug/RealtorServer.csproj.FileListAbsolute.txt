@@ -139,3 +139,13 @@ C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\Json.dll
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\Newtonsoft.Json.dll
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\Json.pdb
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\System.Text.Json.xml
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\credentials.db
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\realty.db
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\Json.dll
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\Newtonsoft.Json.dll
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\System.ValueTuple.dll
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\Microsoft.Bcl.AsyncInterfaces.xml
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\System.Text.Encodings.Web.xml
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\System.Text.Json.xml
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\System.Threading.Tasks.Extensions.xml
+C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\System.ValueTuple.xml

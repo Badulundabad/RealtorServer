@@ -9,12 +9,13 @@ using NLog;
 using System.Diagnostics;
 using System.Linq;
 using RealtyModel.Model.Operations;
+using System.Collections.Generic;
 
 namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private Socket listeningSocket;
+        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
         private ObservableCollection<LocalClient> clients = new ObservableCollection<LocalClient>();
 
         public ObservableCollection<LocalClient> Clients
@@ -38,16 +39,10 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    IPEndPoint serverAddress = new IPEndPoint(IPAddress.Any, 8005);
-                    using (listeningSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
-                    {
-                        listeningSocket.Bind(serverAddress);
-                        listeningSocket.Listen(10);
-                        LogInfo("HAS RAN");
-                        while (IsRunning)
-                            if (listeningSocket.Poll(100000, SelectMode.SelectRead))
-                                ConnectClientAsync();
-                    }
+                    LogInfo("HAS RAN");
+                    while (IsRunning)
+                        if (tcpListener.Pending())
+                            ConnectClientAsync();
                 }
                 catch (Exception ex)
                 {
@@ -108,8 +103,10 @@ namespace RealtorServer.Model.NET
                 LocalClient client = null;
                 try
                 {
-                    Socket clientSocket = listeningSocket.Accept();
-                    client = new LocalClient(clientSocket);
+                    TcpClient tcpClient = tcpListener.AcceptTcpClient();
+                    NetworkStream stream = tcpClient.GetStream();
+
+                    client = new LocalClient(tcpClient);
                     LogInfo($"HAS CONNECTED {client.IpAddress}");
 
                     client.CheckConnectionAsync();
@@ -187,6 +184,7 @@ namespace RealtorServer.Model.NET
                 }
             });
         }
+
         public void DisconnectAllClients()
         {
             if (clients != null && clients.Count > 0)

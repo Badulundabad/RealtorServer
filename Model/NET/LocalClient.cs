@@ -11,6 +11,7 @@ using NLog;
 using RealtorServer.Model.Event;
 using System.Text.Json;
 using RealtyModel.Model.Operations;
+using System.Collections.Generic;
 
 namespace RealtorServer.Model.NET
 {
@@ -18,11 +19,11 @@ namespace RealtorServer.Model.NET
     {
         #region Fields
         private object sendLocker = new object();
-        private String name = "";
-        private IPAddress ipAddress = null;
-        private Boolean isConnected = false;
-        private Socket socket;
+        private String name;
+        private Boolean isConnected;
+        private IPAddress ipAddress;
         private NetworkStream stream;
+        private TcpClient tcpClient;
         private static Logger logger = LogManager.GetCurrentClassLogger();
         public event DisconnectedEventHandler Disconnected;
         public event OperationReceivedEventHandler OperationReceived;
@@ -38,6 +39,14 @@ namespace RealtorServer.Model.NET
                 OnPropertyChanged();
             }
         }
+        public Boolean IsConnected
+        {
+            get => isConnected;
+            private set
+            {
+                isConnected = value;
+            }
+        }
         public IPAddress IpAddress
         {
             get => ipAddress;
@@ -47,22 +56,14 @@ namespace RealtorServer.Model.NET
                 OnPropertyChanged();
             }
         }
-        public Boolean IsConnected
-        {
-            get => isConnected;
-            private set
-            {
-                isConnected = value;
-            }
-        }
         public OperationQueue OutcomingOperations { get; private set; }
         #endregion
 
-        public LocalClient(Socket socket)
+        public LocalClient(TcpClient client)
         {
-            this.socket = socket;
-            stream = new NetworkStream(socket, true);
-            IpAddress = ((IPEndPoint)socket.RemoteEndPoint).Address;
+            tcpClient = client;
+            stream = tcpClient.GetStream();
+            IpAddress = ((IPEndPoint)client.Client.RemoteEndPoint).Address;
             OutcomingOperations = new OperationQueue();
             OutcomingOperations.Enqueued += (s, e) => SendAsync();
         }
@@ -78,25 +79,10 @@ namespace RealtorServer.Model.NET
                     {
                         if (stream.DataAvailable)
                         {
-                            Byte[] buffer = new Byte[4];
-                            stream.Read(buffer, 0, 4);
-                            Int32 expectedSize = BitConverter.ToInt32(buffer, 0);
-                            Int32 bytesReceived = 0;
-                            StringBuilder response = new StringBuilder();
-
-                            buffer = new byte[8];
-                            do
-                            {
-                                bytesReceived += stream.Read(buffer, 0, buffer.Length);
-                                response.Append(Encoding.UTF8.GetString(buffer));
-                            }
-                            while (bytesReceived < expectedSize);
-
-                            String s = response.ToString().Split('#')[1];
-                            HandleResponseAsync(s, expectedSize);
-                            response.Length = 0;
-                            response.Capacity = 0;
-                            GC.Collect();
+                            List<byte> byteList = new List<byte>();
+                            int size = GetSize(stream);
+                            bool isSuccessful = ReceiveData(stream, byteList, size);
+                            SendResponse(stream, isSuccessful);
                         }
                     }
                 }
@@ -197,8 +183,8 @@ namespace RealtorServer.Model.NET
             });
             bool GetSocketStatus()
             {
-                bool part1 = socket.Poll(1000, SelectMode.SelectRead);
-                bool part2 = (socket.Available == 0);
+                bool part1 = tcpClient.Client.Poll(1000, SelectMode.SelectRead);
+                bool part2 = (tcpClient.Client.Available == 0);
                 if (part1 && part2)
                     return false;
                 else
@@ -214,7 +200,7 @@ namespace RealtorServer.Model.NET
                     IsConnected = false;
                     OutcomingOperations = new OperationQueue();
                     Task.Delay(1000).Wait();
-                    socket.Shutdown(SocketShutdown.Both);
+                    tcpClient.Close();
                     stream.Close();
                     stream.Dispose();
                 }
@@ -246,6 +232,71 @@ namespace RealtorServer.Model.NET
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));
             }
+        }
+
+
+        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
+        public TcpListener TcpListener
+        {
+            get => tcpListener;
+        }
+
+        public async void StartListeningAsync()
+        {
+            await Task.Run(() =>
+            {
+                while (true)
+                {
+                    using (TcpClient client = tcpListener.AcceptTcpClient())
+                    {
+                        NetworkStream stream = client.GetStream();
+                        List<byte> byteList = new List<byte>();
+                        int size = GetSize(stream);
+                        bool isSuccessful = ReceiveData(stream, byteList, size);
+                        SendResponse(stream, isSuccessful);
+                    }
+                }
+            });
+        }
+        private static void SendResponse(NetworkStream stream, bool isSuccessful)
+        {
+            if (isSuccessful)
+            {
+                byte[] buffer2 = BinarySerializer.Serialize(true);
+                stream.Write(buffer2, 0, buffer2.Length);
+            }
+            else
+            {
+                byte[] buffer2 = BinarySerializer.Serialize(false);
+                stream.Write(buffer2, 0, buffer2.Length);
+            }
+        }
+        private static bool ReceiveData(NetworkStream stream, List<byte> byteList, int size)
+        {
+            try
+            {
+                while (byteList.Count < size)
+                {
+                    byte[] buffer = new byte[8192];
+                    int bytes = stream.Read(buffer, 0, buffer.Length);
+                    Debug.WriteLine($"Принял {bytes} байт");
+                    byte[] receivedData = new byte[bytes];
+                    Array.Copy(buffer, receivedData, bytes);
+                    byteList.AddRange(receivedData);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+                return false;
+            }
+        }
+        private static int GetSize(NetworkStream stream)
+        {
+            byte[] buffer = new byte[4];
+            stream.Read(buffer, 0, buffer.Length);
+            return BitConverter.ToInt32(buffer, 0);
         }
     }
 }
