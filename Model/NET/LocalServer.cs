@@ -15,7 +15,7 @@ namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private TcpListener tcpListener = new TcpListener(IPAddress.Any, 15000);
+        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
         private ObservableCollection<LocalClient> clients = new ObservableCollection<LocalClient>();
 
         public ObservableCollection<LocalClient> Clients
@@ -40,9 +40,14 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     LogInfo("HAS RAN");
+                    tcpListener.Start();
                     while (IsRunning)
+                    {
                         if (tcpListener.Pending())
                             ConnectClientAsync();
+                        else
+                            Task.Delay(100).Wait();
+                    }
                 }
                 catch (Exception ex)
                 {

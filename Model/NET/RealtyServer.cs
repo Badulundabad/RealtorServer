@@ -14,6 +14,7 @@ using RealtyModel.Model.Operations;
 using RealtorServer.Model.Event;
 using RealtyModel.Service;
 using System.Threading.Tasks;
+using System.Collections.ObjectModel;
 
 namespace RealtorServer.Model.NET
 {
@@ -92,8 +93,8 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     RealtyContext context = new RealtyContext();
-                    Filter filter = JsonSerializer.Deserialize<Filter>(operation.Data);
-                    operation.Data = "";
+                    Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
+                    operation.Data = new byte[0];
                     List<Flat> flats;
                     if (filter.IsFlat)
                     {
@@ -107,7 +108,7 @@ namespace RealtorServer.Model.NET
                         {
                             Operation part = operation.GetCopy();
                             part.Parameters.Part = number++;
-                            part.Data = JsonSerializer.Serialize(array);
+                            part.Data = BinarySerializer.Serialize(array);
                             OperationHandled?.Invoke(this, new OperationHandledEventArgs(part));
                         }
                     }
@@ -115,7 +116,6 @@ namespace RealtorServer.Model.NET
                 catch (Exception ex)
                 {
                     LogError($"(SendResponse) {ex.Message}\n\n");
-                    operation.Data = "";
                     operation.IsSuccessfully = false;
                     OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
                 }
@@ -127,13 +127,26 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    LocationOptions lists = new LocationOptions(); 
+                    LocationOptions lists = new LocationOptions();
+                    using (RealtyContext context = new RealtyContext())
+                    {
+                        if (context.Cities.Local.Count > 0)
+                            lists.Cities = context.Cities.Local;
+                        else lists.Cities = new ObservableCollection<City>();
+                        if (context.Districts.Local.Count > 0)
+                            lists.Districts = context.Districts.Local;
+                        else lists.Districts = new ObservableCollection<District>();
+                        if (context.Streets.Local.Count > 0)
+                            lists.Streets = context.Streets.Local;
+                        else lists.Streets = new ObservableCollection<Street>();
 
+                        operation.Data = BinarySerializer.Serialize<LocationOptions>(lists);
+                        operation.IsSuccessfully = true;
+                    }
                 }
                 catch (Exception ex)
                 {
                     LogError($"(AddFlat) {ex.Message}");
-                    operation.Data = "";
                     operation.IsSuccessfully = false;
                 }
                 finally
@@ -173,8 +186,8 @@ namespace RealtorServer.Model.NET
             LogInfo($"{operation.Number} add flat");
             try
             {
-                Flat newFlat = JsonSerializer.Deserialize<Flat>(operation.Data);
-                operation.Data = "";
+                Flat newFlat = BinarySerializer.Deserialize<Flat>(operation.Data);
+                operation.Data = new byte[0];
                 if (!FindDuplicate(Target.Flat, newFlat.Location))
                 {
                     using (RealtyContext realtyDB = new RealtyContext())
@@ -208,7 +221,6 @@ namespace RealtorServer.Model.NET
             {
                 LogError($"(AddFlat) {ex.Message}\n\n");
                 LogError($"(AddFlat) {operation.Data}\n\n");
-                operation.Data = "";
                 operation.IsSuccessfully = false;
             }
             finally
@@ -218,29 +230,29 @@ namespace RealtorServer.Model.NET
         }
         private void AddPhoto(Operation operation)
         {
-            try
-            {
-                String[] data = operation.Data.Split(new String[] { "<GUID>" }, StringSplitOptions.None);
-                Photo photo = JsonSerializer.Deserialize<Photo>(data[1]);
-                using (RealtyContext realtyDB = new RealtyContext())
-                {
-                    realtyDB.Photos.Local.Add(photo);
-                    realtyDB.SaveChanges();
-                }
-                operation.Data = data[0];
-                operation.IsSuccessfully = true;
-                LogInfo($"SAVED A PHOTO {operation.Number}");
-            }
-            catch (Exception ex)
-            {
-                LogError($"(AddPhoto) {ex.Message}\n\n");
-                operation.Data = null;
-                operation.IsSuccessfully = false;
-            }
-            finally
-            {
-                OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
-            }
+            //try
+            //{
+            //    String[] data = operation.Data.Split(new String[] { "<GUID>" }, StringSplitOptions.None);
+            //    Photo photo = JsonSerializer.Deserialize<Photo>(data[1]);
+            //    using (RealtyContext realtyDB = new RealtyContext())
+            //    {
+            //        realtyDB.Photos.Local.Add(photo);
+            //        realtyDB.SaveChanges();
+            //    }
+            //    operation.Data = data[0];
+            //    operation.IsSuccessfully = true;
+            //    LogInfo($"SAVED A PHOTO {operation.Number}");
+            //}
+            //catch (Exception ex)
+            //{
+            //    LogError($"(AddPhoto) {ex.Message}\n\n");
+            //    operation.Data = null;
+            //    operation.IsSuccessfully = false;
+            //}
+            //finally
+            //{
+            //    OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
+            //}
         }
         private void ChangeFlat(Operation operation)
         {
@@ -251,7 +263,7 @@ namespace RealtorServer.Model.NET
                 using (RealtyContext realtyDB = new RealtyContext())
                 {
                     Flat dbFlat = realtyDB.Flats.Find(updFlat.Id) ?? throw new Exception($"There is no such flat {updFlat.Location.City.Name} {updFlat.Location.District.Name} {updFlat.Location.Street.Name} д{updFlat.Location.HouseNumber} кв{updFlat.Location.FlatNumber}");
-                    operation.Data = "";
+                    operation.Data = new byte[0];
                     if (operation.Name == dbFlat.Agent && ChangeProperties(updFlat, dbFlat, operation))
                     {
                         dbFlat.LastUpdateTime = DateTime.Now;

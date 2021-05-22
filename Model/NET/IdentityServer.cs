@@ -32,7 +32,8 @@ namespace RealtorServer.Model.NET
                 if (IncomingOperations != null && IncomingOperations.Count > 0)
                 {
                     Operation operation = IncomingOperations.Dequeue();
-                    Credential credential = FindMatchingCredential(operation.Name, operation.Data);
+                    String password = BinarySerializer.Deserialize<String>(operation.Data);
+                    Credential credential = FindMatchingCredential(operation.Name, password);
 
                     if (operation.Parameters.Action == Act.Login && credential != null)
                         Login(operation, credential);
@@ -57,7 +58,7 @@ namespace RealtorServer.Model.NET
 
                 LogInfo($"{operation.IpAddress} has logged in as {credential.Name}");
 
-                operation.Data = credential.Token.ToString();
+                operation.Data = BinarySerializer.Serialize<String>(credential.Token);
                 operation.IsSuccessfully = true;
             }
             catch (Exception ex)
@@ -94,7 +95,8 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(operation.Data))
+                String password = BinarySerializer.Deserialize<String>(operation.Data);
+                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(password))
                 {
                     Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
                     credential.RegistrationDate = DateTime.Now;

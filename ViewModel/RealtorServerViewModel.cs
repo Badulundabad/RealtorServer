@@ -50,7 +50,7 @@ namespace RealtorServer.ViewModel
         public RealtorServerViewModel()
         {
             InitializeMembers();
-            TestFillDB();
+            //TestFillDB();
 
             RunCommand = new CustomCommand((obj) =>
             {
@@ -91,7 +91,9 @@ namespace RealtorServer.ViewModel
                             IdentityServer.IncomingOperations.Enqueue(operation);
                         else if (operation.Parameters.Direction == Direction.Realty)
                         {
-                            if (IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                            if (operation.Parameters.Target == Target.Lists)
+                                RealtyServer.IncomingOperations.Enqueue(operation);
+                            else if (IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
                                 RealtyServer.IncomingOperations.Enqueue(operation);
                             else
                             {
@@ -221,8 +223,8 @@ namespace RealtorServer.ViewModel
                 context.Flats.Add(flat);
                 context.SaveChanges();
             }
-                context.Flats.Load();
-                ObservableCollection<Flat> flats1 = context.Flats.Local;                
+            context.Flats.Load();
+            ObservableCollection<Flat> flats1 = context.Flats.Local;
         }
     }
 }

@@ -164,7 +164,7 @@ namespace RealtorServer.Model.NET
 
                             stream.Write(dataSize, 0, 4);
                             stream.Write(data, 0, data.Length);
-                            LogInfo($"SENT {dataSize.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
+                            LogInfo($"SENT {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                         }
                         catch (SocketException sockEx)
                         {
