@@ -80,9 +80,9 @@ namespace RealtorServer.Model.NET
                         if (stream.DataAvailable)
                         {
                             List<byte> byteList = new List<byte>();
-                            int size = GetSize(stream);
-                            bool isSuccessful = ReceiveData(stream, byteList, size);
-                            SendResponse(stream, isSuccessful);
+                            int size = GetSize();
+                            bool isSuccessful = ReceiveData(byteList, size);
+                            HandleResponseAsync(byteList.ToArray(), size);
                         }
                     }
                 }
@@ -96,21 +96,45 @@ namespace RealtorServer.Model.NET
                 }
             }));
         }
-        private async void HandleResponseAsync(String data, int expectedSize)
+        private bool ReceiveData(List<byte> byteList, int size)
+        {
+            try
+            {
+                while (byteList.Count < size)
+                {
+                    byte[] buffer = new byte[8192];
+                    int bytes = stream.Read(buffer, 0, buffer.Length);
+                    LogInfo($"Receive {bytes} bytes");
+                    byte[] receivedData = new byte[bytes];
+                    Array.Copy(buffer, receivedData, bytes);
+                    byteList.AddRange(receivedData);
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LogError($"(ReceiveData) {ex.Message}");
+                return false;
+            }
+        }
+        private int GetSize()
+        {
+            byte[] buffer = new byte[4];
+            stream.Read(buffer, 0, buffer.Length);
+            return BitConverter.ToInt32(buffer, 0);
+        }
+        private async void HandleResponseAsync(Byte[] data, int expectedSize)
         {
             await Task.Run(() =>
             {
                 try
                 {
-                    Operation operation = JsonSerializer.Deserialize<Operation>(data);
+                    Operation operation = BinarySerializer.Deserialize<Operation>(data);
                     operation.IpAddress = IpAddress.ToString();
-                    if (data.Length + 2 == expectedSize)
+                    if (data.Length == expectedSize)
                         LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                     else
-                    {
                         LogInfo($"RECEIVED WRONG BYTE COUNT: data - {data.Length} OF {expectedSize}");
-                        LogInfo($"{data}");
-                    }
                     OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
                 }
                 catch (Exception ex)
@@ -135,13 +159,12 @@ namespace RealtorServer.Model.NET
                             else if (operation.Parameters.Action == Act.Logout && operation.IsSuccessfully)
                                 Name = "";
                             operation.Number = (Guid.NewGuid()).ToString();
-                            String json = "#" + JsonSerializer.Serialize(operation) + "#";
-                            Byte[] data = Encoding.UTF8.GetBytes(json);
+                            Byte[] data = BinarySerializer.Serialize(operation);
                             Byte[] dataSize = BitConverter.GetBytes(data.Length);
 
                             stream.Write(dataSize, 0, 4);
                             stream.Write(data, 0, data.Length);
-                            LogInfo($"SENT {json.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
+                            LogInfo($"SENT {dataSize.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                         }
                         catch (SocketException sockEx)
                         {
@@ -232,71 +255,6 @@ namespace RealtorServer.Model.NET
             {
                 PropertyChanged(this, new PropertyChangedEventArgs(prop));
             }
-        }
-
-
-        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
-        public TcpListener TcpListener
-        {
-            get => tcpListener;
-        }
-
-        public async void StartListeningAsync()
-        {
-            await Task.Run(() =>
-            {
-                while (true)
-                {
-                    using (TcpClient client = tcpListener.AcceptTcpClient())
-                    {
-                        NetworkStream stream = client.GetStream();
-                        List<byte> byteList = new List<byte>();
-                        int size = GetSize(stream);
-                        bool isSuccessful = ReceiveData(stream, byteList, size);
-                        SendResponse(stream, isSuccessful);
-                    }
-                }
-            });
-        }
-        private static void SendResponse(NetworkStream stream, bool isSuccessful)
-        {
-            if (isSuccessful)
-            {
-                byte[] buffer2 = BinarySerializer.Serialize(true);
-                stream.Write(buffer2, 0, buffer2.Length);
-            }
-            else
-            {
-                byte[] buffer2 = BinarySerializer.Serialize(false);
-                stream.Write(buffer2, 0, buffer2.Length);
-            }
-        }
-        private static bool ReceiveData(NetworkStream stream, List<byte> byteList, int size)
-        {
-            try
-            {
-                while (byteList.Count < size)
-                {
-                    byte[] buffer = new byte[8192];
-                    int bytes = stream.Read(buffer, 0, buffer.Length);
-                    Debug.WriteLine($"Принял {bytes} байт");
-                    byte[] receivedData = new byte[bytes];
-                    Array.Copy(buffer, receivedData, bytes);
-                    byteList.AddRange(receivedData);
-                }
-                return true;
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine(ex.Message);
-                return false;
-            }
-        }
-        private static int GetSize(NetworkStream stream)
-        {
-            byte[] buffer = new byte[4];
-            stream.Read(buffer, 0, buffer.Length);
-            return BitConverter.ToInt32(buffer, 0);
         }
     }
 }

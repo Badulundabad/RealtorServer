@@ -15,7 +15,7 @@ namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
+        private TcpListener tcpListener = new TcpListener(IPAddress.Any, 15000);
         private ObservableCollection<LocalClient> clients = new ObservableCollection<LocalClient>();
 
         public ObservableCollection<LocalClient> Clients
@@ -104,8 +104,6 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     TcpClient tcpClient = tcpListener.AcceptTcpClient();
-                    NetworkStream stream = tcpClient.GetStream();
-
                     client = new LocalClient(tcpClient);
                     LogInfo($"HAS CONNECTED {client.IpAddress}");
 
