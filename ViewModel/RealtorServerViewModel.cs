@@ -127,7 +127,6 @@ namespace RealtorServer.ViewModel
         private void TestFillDB()
         {
             RealtyContext context = new RealtyContext();
-            String s = JsonSerializer.Serialize(new byte[200000]);
             Flat flat = new Flat()
             {
                 Agent = "asd",
@@ -135,7 +134,7 @@ namespace RealtorServer.ViewModel
                 {
                     Location = "asdas",
                     PhotoKeys = "asd",
-                    PreviewJson = s
+                    Preview = new byte[200000]
                 },
                 HasAlbumChanges = false,
                 Cost = new Cost()

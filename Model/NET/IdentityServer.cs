@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Diagnostics;
 using System.Linq;
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using System.Windows.Threading;
 using RealtorServer.Model.DataBase;
 using RealtorServer.Model.Event;
 using RealtyModel.Model;
 using RealtyModel.Model.Operations;
-using RealtyModel.Service;
 
 namespace RealtorServer.Model.NET
 {
@@ -69,7 +64,7 @@ namespace RealtorServer.Model.NET
             }
             finally
             {
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
             }
         }
         private void Logout(Operation operation, Credential credential)
@@ -98,7 +93,7 @@ namespace RealtorServer.Model.NET
                 String password = BinarySerializer.Deserialize<String>(operation.Data);
                 if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(password))
                 {
-                    Credential credential = JsonSerializer.Deserialize<Credential>(operation.Data);
+                    Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
                     credential.RegistrationDate = DateTime.Now;
                     credentialContext.Credentials.Local.Add(credential);
                     credentialContext.SaveChanges();
