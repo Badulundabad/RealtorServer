@@ -15,6 +15,7 @@ using RealtorServer.Model.Event;
 using RealtyModel.Service;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 
 namespace RealtorServer.Model.NET
 {
@@ -69,24 +70,37 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    RealtyContext context = new RealtyContext();
                     Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
                     operation.Data = new byte[0];
-                    List<Flat> flats;
                     if (filter.IsFlat)
                     {
                         using (RealtyContext realty = new RealtyContext())
-                            flats = realty.Flats.Local.ToList<Flat>();
-                        Flat[][] filteredArrays = filter.CreateFilteredList(flats);
-                        operation.Parameters.PartCount = filteredArrays.Length;
-                        operation.IsSuccessfully = true;
-                        Int32 number = 0;
-                        foreach (Flat[] array in filteredArrays)
                         {
-                            Operation part = operation.GetCopy();
-                            part.Parameters.Part = number++;
-                            part.Data = BinarySerializer.Serialize(array);
-                            OperationHandled?.Invoke(this, new OperationHandledEventArgs(part));
+                            List<Flat> flats = realty.Flats.Local.ToList();
+                            Flat[][] filteredArrays = filter.CreateFilteredList(flats);
+                            if (filteredArrays != null)
+                            {
+                                operation.Parameters.PartCount = filteredArrays.Length;
+                                operation.IsSuccessfully = true;
+                                Int32 number = 0;
+                                foreach (Flat[] array in filteredArrays)
+                                {
+                                    Operation part = operation.GetCopy();
+                                    number++;
+                                    part.Parameters.Part = number;
+                                    part.Data = BinarySerializer.Serialize(array);
+                                    Debug.WriteLine("Первый вариант");
+                                    foreach (Flat flat in array)
+                                        Debug.WriteLine(flat.Cost);
+                                    OperationHandled?.Invoke(this, new OperationHandledEventArgs(part));
+                                }
+                            }
+                            else
+                            {
+                                Debug.WriteLine("Второй вариант");
+                                operation.IsSuccessfully = false;
+                                OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
+                            }
                         }
                     }
                 }
@@ -108,13 +122,13 @@ namespace RealtorServer.Model.NET
                     using (RealtyContext context = new RealtyContext())
                     {
                         if (context.Cities.Local.Count > 0)
-                            lists.Cities = context.Cities.Local;
+                            lists.Cities = new ObservableCollection<City>(context.Cities.Local);
                         else lists.Cities = new ObservableCollection<City>();
                         if (context.Districts.Local.Count > 0)
-                            lists.Districts = context.Districts.Local;
+                            lists.Districts = new ObservableCollection<District>(context.Districts.Local);
                         else lists.Districts = new ObservableCollection<District>();
                         if (context.Streets.Local.Count > 0)
-                            lists.Streets = context.Streets.Local;
+                            lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
                         else lists.Streets = new ObservableCollection<Street>();
 
                         operation.Data = BinarySerializer.Serialize<LocationOptions>(lists);

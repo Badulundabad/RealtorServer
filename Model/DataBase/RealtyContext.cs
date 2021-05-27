@@ -9,15 +9,15 @@ namespace RealtorServer.Model.DataBase
     {
         public RealtyContext() : base("RealtyDBConnection")
         {
-            //Flats.Load();
-            //Houses.Load();
-            //Cities.Load();
-            //Districts.Load();
-            //Streets.Load();
-            //Locations.Load();
-            //Albums.Load();
-            //Photos.Load();
-            //Customers.Load();
+            Flats.Load();
+            Houses.Load();
+            Cities.Load();
+            Districts.Load();
+            Streets.Load();
+            Locations.Load();
+            Albums.Load();
+            Photos.Load();
+            Customers.Load();
         }
         
         public DbSet<Flat> Flats { get; set; }
