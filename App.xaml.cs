@@ -23,11 +23,5 @@ namespace RealtorServer
             MainWindow = new MainWindow() { DataContext = viewModel };
             MainWindow.Show();
         }
-        protected override void OnExit(ExitEventArgs e)
-        {
-            viewModel.Server.DisconnectAllClients();
-            viewModel.StopCommand.Execute(new object());
-            base.OnExit(e);
-        }
     }
 }

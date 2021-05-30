@@ -137,17 +137,12 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Model\DataBase\RealtyContext.cs" />
-    <Compile Include="Model\Event\DisconnectedEventArgs.cs" />
-    <Compile Include="Model\Event\EventHandlers.cs" />
-    <Compile Include="Model\Event\CredentialHandledEventArgs.cs" />
-    <Compile Include="Model\Event\OperationHandledEventArgs.cs" />
-    <Compile Include="Model\Event\OperationReceivedEventArgs.cs" />
-    <Compile Include="Model\Event\SentDisconnectEventArgs.cs" />
+    <Compile Include="Model\NET\OperationHandling.cs" />
+    <Compile Include="Model\NET\Identification.cs" />
     <Compile Include="Model\NET\IdentityServer.cs" />
     <Compile Include="Model\NET\RealtyServer.cs" />
-    <Compile Include="Model\NET\LocalClient.cs" />
     <Compile Include="Model\DataBase\CredentialContext.cs" />
-    <Compile Include="Model\NET\LocalServer.cs" />
+    <Compile Include="Model\NET\Requesting.cs" />
     <Compile Include="Model\NET\Server.cs" />
     <Compile Include="ViewModel\RealtorServerViewModel.cs" />
     <Compile Include="View\MainWindow.xaml.cs">
