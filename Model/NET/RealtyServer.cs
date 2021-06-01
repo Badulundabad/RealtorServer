@@ -33,13 +33,10 @@ namespace RealtorServer.Model.NET
                     using (RealtyContext context = new RealtyContext()) {
                         if (context.Cities.Local.Count > 0)
                             lists.Cities = new ObservableCollection<City>(context.Cities.Local);
-                        else lists.Cities = new ObservableCollection<City>();
                         if (context.Districts.Local.Count > 0)
                             lists.Districts = new ObservableCollection<District>(context.Districts.Local);
-                        else lists.Districts = new ObservableCollection<District>();
                         if (context.Streets.Local.Count > 0)
                             lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
-                        else lists.Streets = new ObservableCollection<Street>();
 
                         operation.Data = BinarySerializer.Serialize<LocationOptions>(lists);
                         operation.IsSuccessfully = true;

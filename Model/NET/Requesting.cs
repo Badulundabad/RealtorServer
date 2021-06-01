@@ -15,27 +15,31 @@ namespace RealtorServer.Model.NET
         public Requesting(Operation operation) {
             this.operation = operation;
         }
-        //private byte[] HandleLocationRequest() {
-        //    LocationOptions lists = new LocationOptions();
-        //    using (RealtyContext context = new RealtyContext()) {
-        //        if (context.Cities.Local.Count > 0)
-        //            lists.Cities = new ObservableCollection<City>(context.Cities.Local);
-        //        else lists.Cities = new ObservableCollection<City>();
-        //        if (context.Districts.Local.Count > 0)
-        //            lists.Districts = new ObservableCollection<District>(context.Districts.Local);
-        //        else lists.Districts = new ObservableCollection<District>();
-        //        if (context.Streets.Local.Count > 0)
-        //            lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
-        //        else lists.Streets = new ObservableCollection<Street>();
-        //    }
-        //}
-        //public override byte[] Handle() {
-        //    if (operation.Target == Target.Locations) {
-        //        return HandleLocationRequest();
-        //    } else {
-        //        throw new NotImplementedException();
-        //    }
-        //}
+        private Response GetLocations() {
+            LocationOptions lists = new LocationOptions();
+            using (RealtyContext context = new RealtyContext()) {
+                lists.Cities = new ObservableCollection<City>(context.Cities.Local);
+                lists.Districts = new ObservableCollection<District>(context.Districts.Local);
+                lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
+            }
+            Response response = new Response(BinarySerializer.Serialize(lists));
+            if (lists.Cities.Count == 0
+                && lists.Districts.Count == 0
+                && lists.Streets.Count == 0) {
+                response.Code = ErrorCode.NoLocations;
+            }
+            return response;
+        }
+        private Response GetRealtorObjects() {
+            throw new NotImplementedException();
+        }
+        public override Response Handle() {
+            if (operation.Target == Target.Locations) {
+                return GetLocations();
+            } else {
+                throw new NotImplementedException();
+            }
+        }
 
     }
 }

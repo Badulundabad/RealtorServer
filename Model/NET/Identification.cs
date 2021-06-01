@@ -16,23 +16,23 @@ namespace RealtorServer.Model.NET
         public Identification(Operation operation) {
             this.operation = operation;
         }
-        private Response HandleLogin() {
+        private Response VerifyCredentials() {
             Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
             bool hasMatchingCredentials = new CredentialContext().Credentials.FirstOrDefault(x => x.Name == credential.Name && x.Password == credential.Password) != null;
             if (hasMatchingCredentials) {
-                return new Response(BinarySerializer.Serialize(true), ErrorCode.NoCode);
+                return new Response(BinarySerializer.Serialize(true));
             } else {
                 return new Response(BinarySerializer.Serialize(false), ErrorCode.Credential);
             }
         }
-        private Response HandleRegistration() {
+        private Response Registry() {
             throw new NotImplementedException();
         }
         public override Response Handle() {
             if (operation.Action == Action.Login) {
-                return HandleLogin();
+                return VerifyCredentials();
             } else {
-                return HandleRegistration();
+                return Registry();
             }
         }
     }
