@@ -1,17 +1,15 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Threading.Tasks;
 using RealtyModel.Model;
-using NLog;
-using RealtorServer.Model.Event;
-using System.Text.Json;
 using RealtyModel.Model.Operations;
-using System.Collections.Generic;
+using RealtorServer.Model.Event;
+using NLog;
 
 namespace RealtorServer.Model.NET
 {
@@ -26,8 +24,8 @@ namespace RealtorServer.Model.NET
         private TcpClient tcpClient;
         private static Logger logger = LogManager.GetCurrentClassLogger();
         public event DisconnectedEventHandler Disconnected;
-        public event OperationReceivedEventHandler OperationReceived;
         public event PropertyChangedEventHandler PropertyChanged;
+        private LocalServer server;
         #endregion
         #region Properties
         public String Name
@@ -56,23 +54,29 @@ namespace RealtorServer.Model.NET
                 OnPropertyChanged();
             }
         }
-        public OperationQueue OutcomingOperations { get; private set; }
+        public Queue<Operation> OutcomingOperations { get; private set; }
         #endregion
 
-        public LocalClient(TcpClient client)
+        public LocalClient(TcpClient client, LocalServer server)
         {
+            this.server = server;
             tcpClient = client;
             stream = tcpClient.GetStream();
             IpAddress = ((IPEndPoint)client.Client.RemoteEndPoint).Address;
-            OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => SendAsync();
+            OutcomingOperations = new Queue<Operation>();
         }
 
-        public async void ReceiveAsync()
+        public void Run()
+        {
+            IsConnected = true;
+            CheckConnectionAsync();
+            CheckQueueAsync();
+            ReceiveAsync();
+        }
+        private async void ReceiveAsync()
         {
             await Task.Run((Action)(() =>
             {
-                IsConnected = true;
                 try
                 {
                     while (IsConnected)
@@ -80,15 +84,10 @@ namespace RealtorServer.Model.NET
                         if (stream.DataAvailable)
                         {
                             List<byte> byteList = new List<byte>();
-                            int size = GetSize();
-                            bool isSuccessful = ReceiveData(byteList, size);
-                            HandleResponseAsync(byteList.ToArray(), size);
+                            if (ReceiveData(byteList))
+                                HandleResponse(byteList.ToArray());
                         }
                     }
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(ReceiveAsync) {ex.Message}");
                 }
                 finally
                 {
@@ -96,19 +95,26 @@ namespace RealtorServer.Model.NET
                 }
             }));
         }
-        private bool ReceiveData(List<byte> byteList, int size)
+        private bool ReceiveData(List<byte> byteList)
         {
             try
             {
+                LogInfo($"started to receive");
+                Int32 size = GetSize();
                 while (byteList.Count < size)
                 {
-                    byte[] buffer = new byte[8192];
-                    int bytes = stream.Read(buffer, 0, buffer.Length);
-                    LogInfo($"Receive {bytes} bytes");
-                    byte[] receivedData = new byte[bytes];
-                    Array.Copy(buffer, receivedData, bytes);
-                    byteList.AddRange(receivedData);
+                    if (stream.DataAvailable)
+                    {
+                        byte[] buffer = new byte[8192];
+                        int bytes = stream.Read(buffer, 0, buffer.Length);
+                        LogInfo($"Receive {bytes} bytes");
+                        byte[] receivedData = new byte[bytes];
+                        Array.Copy(buffer, receivedData, bytes);
+                        byteList.AddRange(receivedData);
+                    }
+                    else throw new Exception("available data was 0 before a size has reached");
                 }
+                LogInfo($"finished to receive");
                 return true;
             }
             catch (Exception ex)
@@ -123,61 +129,58 @@ namespace RealtorServer.Model.NET
             stream.Read(buffer, 0, buffer.Length);
             return BitConverter.ToInt32(buffer, 0);
         }
-        private async void HandleResponseAsync(Byte[] data, int expectedSize)
+        private void HandleResponse(Byte[] data)
+        {
+            try
+            {
+                Operation operation = BinarySerializer.Deserialize<Operation>(data);
+                operation.IpAddress = IpAddress.ToString();
+                server.IncomingOperations.Enqueue(operation);
+                LogInfo($"RECEIVED {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"(HandleResponseAsync) {ex.Message}");
+            }
+        }
+
+        public async void CheckQueueAsync()
         {
             await Task.Run(() =>
             {
-                try
+                while (IsConnected)
                 {
-                    Operation operation = BinarySerializer.Deserialize<Operation>(data);
-                    operation.IpAddress = IpAddress.ToString();
-                    if (data.Length == expectedSize)
-                        LogInfo($"RECEIVED {expectedSize} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
-                    else
-                        LogInfo($"RECEIVED WRONG BYTE COUNT: data - {data.Length} OF {expectedSize}");
-                    OperationReceived?.Invoke(this, new OperationReceivedEventArgs(operation));
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(HandleResponseAsync) {ex.Message}");
+                    if (OutcomingOperations.Count > 0)
+                        SendAsync();
+                    Task.Delay(100).Wait();
                 }
             });
         }
-        private async void SendAsync()
+        private void SendAsync()
         {
-            await Task.Run(() =>
+            try
             {
-                lock (sendLocker)
-                {
-                    if (OutcomingOperations != null && OutcomingOperations.Count > 0)
-                    {
-                        try
-                        {
-                            Operation operation = OutcomingOperations.Dequeue();
-                            if (operation.Parameters.Action == Act.Login && operation.IsSuccessfully)
-                                Name = operation.Name;
-                            else if (operation.Parameters.Action == Act.Logout && operation.IsSuccessfully)
-                                Name = "";
-                            operation.Number = (Guid.NewGuid()).ToString();
-                            Byte[] data = BinarySerializer.Serialize(operation);
-                            Byte[] dataSize = BitConverter.GetBytes(data.Length);
+                Operation operation = OutcomingOperations.Dequeue();
+                if (operation.Parameters.Action == Act.Login && operation.IsSuccessfully)
+                    Name = operation.Name;
+                else if (operation.Parameters.Action == Act.Logout && operation.IsSuccessfully)
+                    Name = "";
+                operation.Number = (Guid.NewGuid()).ToString();
+                Byte[] data = BinarySerializer.Serialize(operation);
+                Byte[] dataSize = BitConverter.GetBytes(data.Length);
 
-                            stream.Write(dataSize, 0, 4);
-                            stream.Write(data, 0, data.Length);
-                            LogInfo($"SENT {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
-                        }
-                        catch (SocketException sockEx)
-                        {
-                            LogError($"(SendAsync) {sockEx.ErrorCode} {sockEx.Message}");
-                        }
-                        catch (Exception ex)
-                        {
-                            LogError($"(SendAsync) {ex.Message}");
-                        }
-                        Task.Delay(100).Wait();
-                    }
-                }
-            });
+                stream.Write(dataSize, 0, 4);
+                stream.Write(data, 0, data.Length);
+                LogInfo($"SENT {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
+            }
+            catch (SocketException sockEx)
+            {
+                LogError($"(SendAsync) {sockEx.ErrorCode} {sockEx.Message}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"(SendAsync) {ex.Message}");
+            }
         }
 
         public async void CheckConnectionAsync()
@@ -204,15 +207,15 @@ namespace RealtorServer.Model.NET
                     }
                 }
             });
-            bool GetSocketStatus()
-            {
-                bool part1 = tcpClient.Client.Poll(1000, SelectMode.SelectRead);
-                bool part2 = (tcpClient.Client.Available == 0);
-                if (part1 && part2)
-                    return false;
-                else
-                    return true;
-            }
+        }
+        private bool GetSocketStatus()
+        {
+            bool part1 = tcpClient.Client.Poll(1000, SelectMode.SelectRead);
+            bool part2 = (tcpClient.Client.Available == 0);
+            if (part1 && part2)
+                return false;
+            else
+                return true;
         }
         public async void DisconnectAsync()
         {

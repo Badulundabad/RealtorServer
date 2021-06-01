@@ -1,32 +1,28 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
+using System.ComponentModel;
+using System.Data.Entity;
+using System.Diagnostics;
+using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Threading;
 using RealtyModel.Model;
-using RealtyModel.Service;
-using RealtorServer.Model.NET;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using NLog;
-using System.Diagnostics;
-using System.Net;
-using RealtyModel.Model.Operations;
-using RealtorServer.Model.DataBase;
-using RealtyModel.Model.Derived;
-using System.Text.Json;
 using RealtyModel.Model.Base;
+using RealtyModel.Model.Derived;
+using RealtyModel.Model.Operations;
 using RealtyModel.Model.RealtyObjects;
-using System.Data.Entity;
-using System.Windows;
+using RealtyModel.Service;
+using RealtorServer.Model.DataBase;
+using RealtorServer.Model.NET;
+using NLog;
+using RealtyModel.Exceptions;
 
 namespace RealtorServer.ViewModel
 {
-    class RealtorServerViewModel : INotifyPropertyChanged
+    public class RealtorServerViewModel : INotifyPropertyChanged
     {
         #region Fields and Properties
-        private object handleLocker = new object();
         private Boolean isRunning = false;
         private static Logger logger = LogManager.GetCurrentClassLogger();
         public event PropertyChangedEventHandler PropertyChanged;
@@ -51,77 +47,97 @@ namespace RealtorServer.ViewModel
         {
             InitializeMembers();
             //TestFillDB();
-
             RunCommand = new CustomCommand((obj) =>
             {
                 IsRunning = true;
                 Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunAsync()));
-                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
+                Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.CheckQueueAsync()));
+                if (Debugger.IsAttached)
+                    Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() => Server.RunUDPMarkerAsync()));
+
             });
-            RunCommand.Execute(new object());
             StopCommand = new CustomCommand((obj) =>
             {
                 IsRunning = false;
                 Server.Stop();
+                RealtyServer.Stop();
+                IdentityServer.Stop();
             });
+
+            RunCommand.Execute(new object());
+            CheckQueueAsync();
         }
 
         private void InitializeMembers()
         {
             Server = new LocalServer(Dispatcher.CurrentDispatcher);
-            Server.IncomingOperations.Enqueued += (s, e) => Handle();
-            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher);
-            RealtyServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
-            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher);
-            IdentityServer.OperationHandled += (s, e) => Server.OutcomingOperations.Enqueue(e.Operation);
+            Server.Clients.CollectionChanged += (s, e) =>
+            {
+                foreach (LocalClient client in e.NewItems)
+                    client.Disconnected += (sender, evArgs) => IdentityServer.Logout(client.IpAddress.ToString());
+            };
+            RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Server.OutcomingOperations);
+            IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Server.OutcomingOperations);
         }
+        private async void CheckQueueAsync()
+        {
+            await Task.Run(() =>
+            {
+                while (IsRunning)
+                {
+                    if (Server.IncomingOperations.Count > 0)
+                        Handle();
+                    Task.Delay(100).Wait();
+                }
+            });
+        }
+
         private void Handle()
         {
-            lock (handleLocker)
+            Operation operation = null;
+            try
             {
-                while (Server.IncomingOperations.Count > 0)
+                operation = Server.IncomingOperations.Dequeue();
+                if (operation.Parameters.Direction == Direction.Identity)
+                    IdentityServer.HandleAsync(operation);
+                else if (operation.Parameters.Direction == Direction.Realty)
                 {
-                    Operation operation = null;
-                    try
-                    {
-                        operation = Server.IncomingOperations.Dequeue();
-                        if (operation.Parameters.Action == Act.Change)
-                            RealtyServer.IncomingOperations.Enqueue(operation);
-                        else if (operation.Parameters.Direction == Direction.Identity)
-                            IdentityServer.IncomingOperations.Enqueue(operation);
-                        else if (operation.Parameters.Direction == Direction.Realty)
-                        {
-                            if (operation.Parameters.Target == Target.Lists)
-                                RealtyServer.IncomingOperations.Enqueue(operation);
-                            else if (IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
-                                RealtyServer.IncomingOperations.Enqueue(operation);
-                            else
-                            {
-                                logger.Info($"ViewModel {operation.Number} security check failed");
-                                Debug.WriteLine($"{DateTime.Now} ViewModel {operation.Number} security check failed");
-                            }
-                        }
-                        else
-                        {
-                            operation.IsSuccessfully = false;
-                            Server.OutcomingOperations.Enqueue(operation);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.Error($"ViewModel(Handle) {ex.Message}");
-                        Debug.WriteLine($"\n{DateTime.Now} ERROR ViewModel(Handle) {ex.Message}\n");
-                        operation.IsSuccessfully = false;
-                        Server.OutcomingOperations.Enqueue(operation);
-                    }
+                    if (operation.Parameters.Target == Target.Lists)
+                        RealtyServer.HandleAsync(operation);
+                    else if (IdentityServer.CheckAccess(operation.IpAddress, operation.Token))
+                        RealtyServer.HandleAsync(operation);
+                    else throw new InformationalException("security check was failed");
                 }
+                else throw new InformationalException("operation direction was wrong");
+            }
+            catch (InformationalException ex)
+            {
+                LogInfo($"{operation.Number} {ex.Message}");
+                operation.IsSuccessfully = false;
+                Server.OutcomingOperations.Enqueue(operation);
+            }
+            catch (Exception ex)
+            {
+                LogError($"(Handle) {ex.Message}");
+                operation.IsSuccessfully = false;
+                Server.OutcomingOperations.Enqueue(operation);
             }
         }
+
         private void OnPropertyChanged([CallerMemberName] String prop = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
         }
-
+        private void LogInfo(String text)
+        {
+            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name}     {text}");
+            logger.Info($"{this.GetType().Name} {text}");
+        }
+        private void LogError(String text)
+        {
+            Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name}     {text}\n");
+            logger.Error($"{this.GetType().Name} {text}");
+        }
 
 
         private void TestFillDB()
@@ -133,8 +149,7 @@ namespace RealtorServer.ViewModel
                 Album = new Album()
                 {
                     Location = "asdas",
-                    PhotoKeys = "asd",
-                    Preview = new byte[200000]
+                    PhotoCollection = new byte[200000]
                 },
                 HasAlbumChanges = false,
                 Cost = new Cost()

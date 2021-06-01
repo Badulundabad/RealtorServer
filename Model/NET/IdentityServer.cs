@@ -1,53 +1,57 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows.Threading;
-using RealtorServer.Model.DataBase;
-using RealtorServer.Model.Event;
+using RealtyModel.Exceptions;
 using RealtyModel.Model;
 using RealtyModel.Model.Operations;
+using RealtorServer.Model.DataBase;
+using RealtyModel.Service;
 
 namespace RealtorServer.Model.NET
 {
     public class IdentityServer : Server
     {
         private CredentialContext credentialContext = new CredentialContext();
-        public event OperationHandledEventHandler OperationHandled;
-
-        public IdentityServer(Dispatcher dispatcher) : base(dispatcher)
+        public IdentityServer(Dispatcher dispatcher, Queue<Operation> queue) : base(dispatcher)
         {
             Dispatcher = dispatcher;
-            OutcomingOperations = new OperationQueue();
-            IncomingOperations = new OperationQueue();
-            IncomingOperations.Enqueued += (s, e) => Handle();
+            OutcomingOperations = queue;
         }
-        private void Handle()
-        {
-            lock (handleLocker)
-            {
-                if (IncomingOperations != null && IncomingOperations.Count > 0)
-                {
-                    Operation operation = IncomingOperations.Dequeue();
-                    String password = BinarySerializer.Deserialize<String>(operation.Data);
-                    Credential credential = FindMatchingCredential(operation.Name, password);
 
-                    if (operation.Parameters.Action == Act.Login && credential != null)
-                        Login(operation, credential);
-                    else if (operation.Parameters.Action== Act.Logout && CheckAccess(operation.IpAddress, operation.Token))
-                        Logout(operation, credential);
-                    else if (operation.Parameters.Action == Act.Register && credential == null)
-                        Register(operation);
-                    else
-                        LogInfo($"something went wrong with {operation.Number}");
+        public async void HandleAsync(Operation operation)
+        {
+            await Task.Run(() =>
+            {
+                lock (handleLocker)
+                {
+                    try
+                    {
+                        String password = BinarySerializer.Deserialize<String>(operation.Data);
+                        Credential credential = FindMatchingCredential(operation.Name, password);
+
+                        if (operation.Parameters.Action == Act.Login && credential != null)
+                            Login(operation, credential);
+                        else if (operation.Parameters.Action == Act.Logout && CheckAccess(operation.IpAddress, operation.Token))
+                            Logout(operation, credential);
+                        else if (operation.Parameters.Action == Act.Register && credential == null)
+                            Register(operation);
+                        else
+                            LogInfo($"something went wrong with {operation.Number}");
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"(Handle) {ex.Message}");
+                    }
                 }
-            }
+            });
         }
 
         private void Login(Operation operation, Credential credential)
         {
             try
             {
-                //if (!String.IsNullOrWhiteSpace(credential.IpAddress) && credential.IpAddress != operation.IpAddress)
-                //    LogoutPrevious(credential);
                 credential.IpAddress = operation.IpAddress;
                 credential.Token = GetToken();
 
@@ -64,14 +68,14 @@ namespace RealtorServer.Model.NET
             }
             finally
             {
-                OperationHandled?.Invoke(this, new OperationHandledEventArgs(operation));
+                OutcomingOperations.Enqueue(operation);
             }
         }
         private void Logout(Operation operation, Credential credential)
         {
             try
             {
-                credential.IpAddress = null;
+                credential.IpAddress = "";
                 credential.Token = (new Guid().ToString());
                 LogInfo($"{credential.Name} has logged out");
                 operation.IsSuccessfully = true;
@@ -83,26 +87,38 @@ namespace RealtorServer.Model.NET
             }
             finally
             {
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                OutcomingOperations.Enqueue(operation);
+            }
+        }
+        public void Logout(String ipAddress)
+        {
+            Credential credential = credentialContext.Credentials.FirstOrDefault(c => c.IpAddress == ipAddress);
+            if (credential != null)
+            {
+                credential.Token = "";
+                credential.IpAddress = "";
             }
         }
         private void Register(Operation operation)
         {
             try
             {
-                String password = BinarySerializer.Deserialize<String>(operation.Data);
-                if (!String.IsNullOrWhiteSpace(operation.Name) && !String.IsNullOrWhiteSpace(password))
+                Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
+                if (FindMatchingCredential(credential.Name, credential.Password) == null)
                 {
-                    Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
                     credential.RegistrationDate = DateTime.Now;
                     credentialContext.Credentials.Local.Add(credential);
                     credentialContext.SaveChanges();
 
                     LogInfo($"{operation.Name} has registered");
-
                     operation.IsSuccessfully = true;
                 }
-                else operation.IsSuccessfully = false;
+                else throw new InformationalException("such user already exists");
+            }
+            catch (InformationalException ex)
+            {
+                operation.IsSuccessfully = false;
+                LogInfo($"(Register) {ex.Message}");
             }
             catch (Exception ex)
             {
@@ -112,22 +128,22 @@ namespace RealtorServer.Model.NET
             finally
             {
                 operation.Data = null;
-                OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(operation));
+                OutcomingOperations.Enqueue(operation);
             }
         }
 
         private void LogoutPrevious(Credential credential)
         {
-            OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(new Operation()
-            {
-                IpAddress = credential.IpAddress.ToString(),
-                Parameters = new Parameters() { Direction = Direction.Identity, Action = Act.Logout },
-                Name = credential.Name,
-                Token = credential.Token,
-                IsSuccessfully = true
-            }));
-            credential.IpAddress = null;
-            credential.Token = (new Guid()).ToString();
+            //OperationHandled?.Invoke(this, new Event.OperationHandledEventArgs(new Operation()
+            //{
+            //    IpAddress = credential.IpAddress.ToString(),
+            //    Parameters = new Parameters() { Direction = Direction.Identity, Action = Act.Logout },
+            //    Name = credential.Name,
+            //    Token = credential.Token,
+            //    IsSuccessfully = true
+            //}));
+            //credential.IpAddress = null;
+            //credential.Token = (new Guid()).ToString();
         }
 
         private Credential FindMatchingCredential(String name, String password)

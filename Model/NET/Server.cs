@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using NLog;
 using RealtyModel.Model;
+using RealtyModel.Model.Operations;
 
 namespace RealtorServer.Model.NET
 {
@@ -17,11 +18,11 @@ namespace RealtorServer.Model.NET
     {
         private String name = "";
         private Boolean isRunning = false;
-        private Dispatcher dispatcher;
-        private OperationQueue incomingOperations; 
-        private OperationQueue outcomingOperations; 
-        private static Logger logger = LogManager.GetCurrentClassLogger();
         protected object handleLocker = new object();
+        private Dispatcher dispatcher;
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+        public Queue<Operation> IncomingOperations { get; set; }
+        public Queue<Operation> OutcomingOperations { get; set; }
         public event PropertyChangedEventHandler PropertyChanged;
 
         public String Name
@@ -47,22 +48,6 @@ namespace RealtorServer.Model.NET
             protected set
             {
                 dispatcher = value;
-            }
-        }
-        public OperationQueue IncomingOperations
-        {
-            get => incomingOperations;
-            protected set
-            {
-                incomingOperations = value;
-            }
-        }
-        public OperationQueue OutcomingOperations
-        {
-            get => outcomingOperations;
-            protected set
-            {
-                outcomingOperations = value;
             }
         }
 

@@ -15,21 +15,14 @@ namespace RealtorServer.Model.NET
 {
     public class LocalServer : Server
     {
-        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
-        private ObservableCollection<LocalClient> clients = new ObservableCollection<LocalClient>();
-
-        public ObservableCollection<LocalClient> Clients
-        {
-            get => clients;
-            set => clients = value;
-        }
-
+        private TcpListener tcpListener;
+        public ObservableCollection<LocalClient> Clients { get; set; }
         public LocalServer(Dispatcher dispatcher) : base(dispatcher)
         {
+            Clients = new ObservableCollection<LocalClient>();
             Dispatcher = dispatcher;
-            IncomingOperations = new OperationQueue();
-            OutcomingOperations = new OperationQueue();
-            OutcomingOperations.Enqueued += (s, e) => HandleAsync();
+            IncomingOperations = new Queue<Operation>();
+            OutcomingOperations = new Queue<Operation>();
         }
 
         public override async void RunAsync()
@@ -39,19 +32,20 @@ namespace RealtorServer.Model.NET
             {
                 try
                 {
-                    LogInfo("HAS RAN");
-                    tcpListener.Start();
+                    RunListener();
                     while (IsRunning)
                     {
-                        if (tcpListener.Pending())
-                            ConnectClientAsync();
-                        else
+                        try
+                        {
+                            if (tcpListener.Pending())
+                                ConnectClientAsync();
                             Task.Delay(100).Wait();
+                        }
+                        catch
+                        {
+                            continue;
+                        }
                     }
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(RunAsync) {ex.Message}");
                 }
                 finally
                 {
@@ -59,6 +53,18 @@ namespace RealtorServer.Model.NET
                     LogInfo("HAS STOPPED");
                 }
             });
+        }
+
+        private void RunListener()
+        {
+            IPAddress ip = null;
+            if (Debugger.IsAttached)
+                ip = IPAddress.Loopback;
+            else
+                ip = IPAddress.Parse("192.168.1.250");
+            tcpListener = new TcpListener(ip, 15000);
+            tcpListener.Start();
+            LogInfo($"HAS RAN on {ip}");
         }
         public async void RunUDPMarkerAsync()
         {
@@ -109,15 +115,12 @@ namespace RealtorServer.Model.NET
                 try
                 {
                     TcpClient tcpClient = tcpListener.AcceptTcpClient();
-                    client = new LocalClient(tcpClient);
+                    client = new LocalClient(tcpClient, this);
                     LogInfo($"HAS CONNECTED {client.IpAddress}");
 
-                    client.CheckConnectionAsync();
-                    client.ReceiveAsync();
-
                     AddClientAsync(client);
-                    client.OperationReceived += (s, e) => IncomingOperations.Enqueue(e.Operation);
-                    client.Disconnected += (s, e) => RemoveClientAsync((LocalClient)s);
+                    client.Disconnected += (s, e) => OnClientDisconnectedAsync((LocalClient)s);
+                    client.Run();
                 }
                 catch (Exception ex)
                 {
@@ -131,67 +134,78 @@ namespace RealtorServer.Model.NET
             {
                 Dispatcher.Invoke(() =>
                 {
-                    clients.Add(client);
+                    Clients.Add(client);
                 });
                 LogInfo($"has added {client.IpAddress}. Clients count = {Clients.Count}");
             });
         }
-        private async void RemoveClientAsync(LocalClient client)
+        private async void OnClientDisconnectedAsync(LocalClient client)
         {
             await Task.Run(() =>
             {
-                Dispatcher.Invoke(() =>
+                Boolean isRemoved = false;
+                Boolean isLoggedOut = false;
+                while (!isRemoved && !isLoggedOut)
                 {
-                    clients.Remove(client);
-                });
+                    if (Clients != null && Clients.Count > 0)
+                        Dispatcher.Invoke(() =>
+                        {
+                            isRemoved = Clients.Remove(client);
+                        });
+                    else isRemoved = true;
+                    
+                }
                 LogInfo($"has removed {client.IpAddress}. Clients count = {Clients.Count}");
             });
         }
-        private async void HandleAsync()
+
+        public async void CheckQueueAsync()
         {
             await Task.Run(() =>
             {
-                lock (handleLocker)
+                while (IsRunning)
                 {
-                    if (OutcomingOperations != null && OutcomingOperations.Count > 0)
-                    {
-                        try
-                        {
-                            Operation operation = null;
-                            if (OutcomingOperations != null && OutcomingOperations.Count > 0)
-                                operation = OutcomingOperations.Dequeue();
-
-                            if (clients != null && clients.Count > 0 && operation != null)
-                            {
-                                if (operation.IsBroadcast)
-                                {
-                                    LogInfo($"has redirected {operation.Number} to broadcast");
-                                    foreach (LocalClient client in clients)
-                                        client.OutcomingOperations.Enqueue(operation);
-                                }
-                                else
-                                    foreach (LocalClient client in clients)
-                                        if (operation.IpAddress == client.IpAddress.ToString())
-                                        {
-                                            LogInfo($"has redirected {operation.Number} to {operation.IpAddress}");
-                                            client.OutcomingOperations.Enqueue(operation);
-                                        }
-                            }
-                            else LogInfo($"hasn't find destination for {operation.Number}");
-                        }
-                        catch (Exception ex)
-                        {
-                            LogError($"(Handle) {ex.Message}");
-                        }
-                    }
+                    if (OutcomingOperations.Count > 0)
+                        Handle();
+                    Task.Delay(100).Wait();
                 }
             });
+        }
+        private void Handle()
+        {
+            try
+            {
+                Operation operation = OutcomingOperations.Dequeue();
+                LogInfo($"started to handle {operation.Parameters.Action} {operation.Parameters.Target}");
+
+                if (Clients.Count > 0)
+                {
+                    if (operation.IsBroadcast)
+                    {
+                        LogInfo($"has redirected {operation.Number} to broadcast");
+                        foreach (LocalClient client in Clients)
+                            client.OutcomingOperations.Enqueue(operation);
+                    }
+                    else
+                        foreach (LocalClient client in Clients)
+                            if (operation.IpAddress == client.IpAddress.ToString())
+                            {
+                                client.OutcomingOperations.Enqueue(operation);
+                                LogInfo($"has redirected {operation.Number} to {operation.IpAddress}");
+                            }
+                }
+                else LogInfo($"hasn't find destination for {operation.Number}");
+            }
+            catch (Exception ex)
+            {
+                LogError($"(Handle) {ex.Message}");
+            }
         }
 
         public void DisconnectAllClients()
         {
-            if (clients != null && clients.Count > 0)
-                foreach (LocalClient client in clients.ToArray())
+            if (Clients != null && Clients.Count > 0)
+                foreach (LocalClient client in Clients.ToArray())
                     client.DisconnectAsync();
         }
     }
