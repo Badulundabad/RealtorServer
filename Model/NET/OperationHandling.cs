@@ -10,7 +10,7 @@ namespace RealtorServer.Model.NET
     class OperationHandling
     {
         protected Operation operation;
-        public virtual byte[] Handle() {
+        public virtual Response Handle() {
             throw new NotImplementedException();
         }
     }

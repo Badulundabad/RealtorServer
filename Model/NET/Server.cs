@@ -51,11 +51,10 @@ namespace RealtorServer.Model.NET
                 while (true) {
                     TcpClient client = tcpListener.AcceptTcpClient();
                     network = client.GetStream();
-                    byte[] data = NetworkTransfer.ReceiveData(network);
-                    Operation operation = BinarySerializer.Deserialize<Operation>(data);
+                    Operation operation = NetworkTransfer.ReceiveOperation(network);
                     
-                    byte[] response = ChooseHandler(operation).Handle();
-                    NetworkTransfer.SendData(response, network);
+                    Response response = ChooseHandler(operation).Handle();
+                    NetworkTransfer.SendResponse(response, network);
                 }
             });
         }
