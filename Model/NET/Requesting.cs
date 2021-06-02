@@ -1,9 +1,12 @@
 ﻿using RealtorServer.Model.DataBase;
 using RealtyModel.Model;
+using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
+using RealtyModel.Service;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -31,11 +34,20 @@ namespace RealtorServer.Model.NET
             return response;
         }
         private Response GetRealtorObjects() {
-            throw new NotImplementedException();
+            using (RealtyContext realtyContext = new RealtyContext()) {
+                Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
+                Flat[] flats = filter.FilterFlats(realtyContext.Flats.Local.ToArray());
+                House[] houses = Array.Empty<House>();
+                Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats, houses);
+                Response response = new Response(BinarySerializer.Serialize(objects), ErrorCode.NoCode);
+                return response;
+            }
         }
         public override Response Handle() {
             if (operation.Target == Target.Locations) {
                 return GetLocations();
+            } else if (operation.Target == Target.RealtorObjects) {
+                return GetRealtorObjects();
             } else {
                 throw new NotImplementedException();
             }

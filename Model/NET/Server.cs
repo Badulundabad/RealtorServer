@@ -41,6 +41,8 @@ namespace RealtorServer.Model.NET
                 return new Identification(operation);
             } else if (operation.Action == Action.Request){
                 return new Requesting(operation);
+            } else if (operation.Action == Action.Add) {
+                return new Adding(operation);
             } else {
                 throw new NotImplementedException();
             }
@@ -51,10 +53,10 @@ namespace RealtorServer.Model.NET
                 while (true) {
                     TcpClient client = tcpListener.AcceptTcpClient();
                     network = client.GetStream();
-                    Operation operation = NetworkTransfer.ReceiveOperation(network);
+                    Operation operation = Transfer.ReceiveOperation(network);
                     
                     Response response = ChooseHandler(operation).Handle();
-                    NetworkTransfer.SendResponse(response, network);
+                    Transfer.SendResponse(response, network);
                 }
             });
         }

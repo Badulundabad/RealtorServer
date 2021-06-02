@@ -25,44 +25,6 @@ namespace RealtorServer.Model.NET
         public RealtyServer(Dispatcher dispatcher) : base(dispatcher) {
             Dispatcher = dispatcher;
         }
-
-        private async void SendLocationOptions(Operation operation) {
-            await Task.Run(() => {
-                try {
-                    LocationOptions lists = new LocationOptions();
-                    using (RealtyContext context = new RealtyContext()) {
-                        if (context.Cities.Local.Count > 0)
-                            lists.Cities = new ObservableCollection<City>(context.Cities.Local);
-                        if (context.Districts.Local.Count > 0)
-                            lists.Districts = new ObservableCollection<District>(context.Districts.Local);
-                        if (context.Streets.Local.Count > 0)
-                            lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
-
-                        operation.Data = BinarySerializer.Serialize<LocationOptions>(lists);
-                        operation.IsSuccessfully = true;
-                    }
-                } catch (Exception ex) {
-                    LogError($"(AddFlat) {ex.Message}");
-                    operation.IsSuccessfully = false;
-                }
-            });
-        }
-
-        private void AddObject(Operation operation) {
-            if (operation.Target == Target.Flat)
-                AddFlat(operation);
-        }
-        //private void ChangeObject(Operation operation) {
-        //
-        //    Target target = operation.Parameters.Target;
-        //    if (target == Target.Flat)
-        //        ChangeFlat(operation);
-        //}
-        private void DeleteObject(Operation operation) {
-            if (operation.Target == Target.Flat)
-                DeleteFlat(operation);
-        }
-
         private void AddFlat(Operation operation) {
             try {
                 Flat newFlat = BinarySerializer.Deserialize<Flat>(operation.Data);
@@ -163,108 +125,17 @@ namespace RealtorServer.Model.NET
                 else return false;
             }
         }
-
-
-
-
-
-        private Boolean ChangeProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation) {
-            try {
-                if (fromObject.HasBaseChanges)
-                    ChangeBaseProperties(fromObject, toObject, operation.Target);
-                if (fromObject.HasAlbumChanges)
-                    ChangeAlbum(fromObject, toObject);
-                if (fromObject.HasCustomerChanges)
-                    ChangeCustomer(fromObject, toObject);
-                if (fromObject.HasLocationChanges)
-                    ChangeLocation(fromObject, toObject, operation.Target);
-                return true;
-            } catch (Exception ex) {
-                LogError($"(ChangeProperties) {ex.Message}");
-                return false;
-            }
-        }
-        private void ChangeBaseProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Target target) {
-            if (target == Target.Flat)
-                ((Flat)toObject).Info = ((Flat)fromObject).Info;
-            else if (target == Target.House)
-                ((House)toObject).Info = ((House)fromObject).Info;
-            toObject.Cost = fromObject.Cost;
-            toObject.HasExclusive = fromObject.HasExclusive;
-            toObject.IsSold = fromObject.IsSold;
-        }
-        private void ChangeAlbum(BaseRealtorObject fromObject, BaseRealtorObject toObject) {
-
-        }
-        private void ChangeCustomer(BaseRealtorObject fromObject, BaseRealtorObject toObject) {
-            toObject.Customer.Name = fromObject.Customer.Name;
-            toObject.Customer.PhoneNumbers = fromObject.Customer.PhoneNumbers;
-        }
-        private void ChangeLocation(BaseRealtorObject fromObject, BaseRealtorObject toObject, Target type) {
-            if (fromObject.Location.City.Id == 0)
-                toObject.Location.City = fromObject.Location.City;
-            else {
-                toObject.Location.CityId = fromObject.Location.CityId;
-                toObject.Location.City.Id = fromObject.Location.City.Id;
-                toObject.Location.City.Name = fromObject.Location.City.Name;
-            }
-            if (fromObject.Location.District.Id == 0)
-                toObject.Location.District = fromObject.Location.District;
-            else {
-                toObject.Location.DistrictId = fromObject.Location.DistrictId;
-                toObject.Location.District.Id = fromObject.Location.District.Id;
-                toObject.Location.District.Name = fromObject.Location.District.Name;
-            }
-            if (fromObject.Location.Street.Id == 0)
-                toObject.Location.Street = fromObject.Location.Street;
-            else {
-                toObject.Location.StreetId = fromObject.Location.StreetId;
-                toObject.Location.Street.Id = fromObject.Location.Street.Id;
-                toObject.Location.Street.Name = fromObject.Location.Street.Name;
-            }
-            if (type == Target.Flat)
-                toObject.Location.FlatNumber = fromObject.Location.FlatNumber;
-            toObject.Location.HouseNumber = fromObject.Location.HouseNumber;
-            toObject.Location.HasBanner = fromObject.Location.HasBanner;
-            toObject.Location.HasExchange = fromObject.Location.HasExchange;
-        }
-        private void DeleteFlat(Operation operation) {
-            LogInfo($"remove flat");
-            try {
-                using (RealtyContext realtyDB = new RealtyContext()) {
-                    Flat dbFlat = realtyDB.Flats.Find(operation.Data);
-                    if (dbFlat != null) {
-                        realtyDB.Flats.Remove(dbFlat);
-                        realtyDB.SaveChanges();
-
-                        LogInfo($"has removed a flat {dbFlat.Location.City} {dbFlat.Location.District} {dbFlat.Location.Street} {dbFlat.Location.HouseNumber} кв{dbFlat.Location.FlatNumber}");
-
-                        operation.Action = Action.Delete;
-                        operation.IsSuccessfully = true;
-                    } else operation.IsSuccessfully = false;
-                }
-            } catch (Exception ex) {
-                LogError($"(RemoveFlat) {ex.Message}");
-                operation.IsSuccessfully = false;
-            }
-        }
         private void ClearDB() {
             using (RealtyContext realtyDB = new RealtyContext()) {
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
-                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Cities'");
-                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Districts'");
-                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Streets'");
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Flats'");
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Houses'");
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Locations'");
                 realtyDB.Albums.Local.Clear();
-                realtyDB.Cities.Local.Clear();
                 realtyDB.Customers.Local.Clear();
-                realtyDB.Districts.Local.Clear();
                 realtyDB.Flats.Local.Clear();
                 realtyDB.Locations.Local.Clear();
-                realtyDB.Streets.Local.Clear();
                 realtyDB.SaveChanges();
             }
         }

@@ -34,9 +34,23 @@ namespace RealtorServer.ViewModel
 
         public RealtorServerViewModel() {
             server = new Server(Dispatcher.CurrentDispatcher);
+            ClearDB();
             Dispatcher.CurrentDispatcher.BeginInvoke(new System.Action(() => server.RunAsync()));
         }
-
+        private void ClearDB() {
+            using (RealtyContext realtyDB = new RealtyContext()) {
+                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Customers'");
+                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Albums'");
+                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Flats'");
+                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Houses'");
+                realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Locations'");
+                realtyDB.Albums.Local.Clear();
+                realtyDB.Customers.Local.Clear();
+                realtyDB.Flats.Local.Clear();
+                realtyDB.Locations.Local.Clear();
+                realtyDB.SaveChanges();
+            }
+        }
         private void OnPropertyChanged([CallerMemberName] String prop = null) {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
         }
