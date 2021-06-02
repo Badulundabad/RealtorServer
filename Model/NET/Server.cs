@@ -43,7 +43,10 @@ namespace RealtorServer.Model.NET
                 return new Requesting(operation);
             } else if (operation.Action == Action.Add) {
                 return new Adding(operation);
-            } else {
+            } else if (operation.Action == Action.Update) {
+                return new Updating(operation);
+            } 
+            else {
                 throw new NotImplementedException();
             }
         }

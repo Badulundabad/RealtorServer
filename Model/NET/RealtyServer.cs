@@ -74,9 +74,6 @@ namespace RealtorServer.Model.NET
                     realtyDB.SaveChanges();
                 }
 
-                foreach (Photo photo in photos)
-                    album.PhotoKeys += $"photo.Id.ToString();";
-
                 return true;
             } catch (Exception ex) {
                 LogError($"(AddPhoto) {ex.Message}\n\n");

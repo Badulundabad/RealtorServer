@@ -145,6 +145,7 @@
     <Compile Include="Model\NET\RealtyServer.cs" />
     <Compile Include="Model\NET\Requesting.cs" />
     <Compile Include="Model\NET\Server.cs" />
+    <Compile Include="Model\NET\Updating.cs" />
     <Compile Include="ViewModel\RealtorServerViewModel.cs" />
     <Compile Include="View\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
