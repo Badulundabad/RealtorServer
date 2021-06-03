@@ -10,6 +10,7 @@ using RealtyModel.Model;
 using RealtyModel.Model.Operations;
 using RealtorServer.Model.Event;
 using NLog;
+using RealtyModel.Service;
 
 namespace RealtorServer.Model.NET
 {
@@ -99,22 +100,20 @@ namespace RealtorServer.Model.NET
         {
             try
             {
-                LogInfo($"started to receive");
                 Int32 size = GetSize();
+                LogInfo($"started to receive {size} bytes");
                 while (byteList.Count < size)
                 {
-                    if (stream.DataAvailable)
-                    {
-                        byte[] buffer = new byte[8192];
-                        int bytes = stream.Read(buffer, 0, buffer.Length);
-                        LogInfo($"Receive {bytes} bytes");
-                        byte[] receivedData = new byte[bytes];
-                        Array.Copy(buffer, receivedData, bytes);
-                        byteList.AddRange(receivedData);
-                    }
-                    else throw new Exception("available data was 0 before a size has reached");
+                    byte[] buffer = new byte[8192];
+                    int bytes = stream.Read(buffer, 0, buffer.Length);
+                    byte[] receivedData = new byte[bytes];
+                    Array.Copy(buffer, receivedData, bytes);
+                    byteList.AddRange(receivedData);
+                    //if (stream.DataAvailable)
+                    //{
+                    //}
+                    //else throw new Exception("available data was 0 before a size has reached");
                 }
-                LogInfo($"finished to receive");
                 return true;
             }
             catch (Exception ex)
@@ -134,9 +133,9 @@ namespace RealtorServer.Model.NET
             try
             {
                 Operation operation = BinarySerializer.Deserialize<Operation>(data);
+                LogInfo($"RECEIVED {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
                 operation.IpAddress = IpAddress.ToString();
                 server.IncomingOperations.Enqueue(operation);
-                LogInfo($"RECEIVED {data.Length} BYTES {operation.Number} - {operation.Parameters.Direction} {operation.Parameters.Action} {operation.Parameters.Target}");
             }
             catch (Exception ex)
             {

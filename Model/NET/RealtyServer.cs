@@ -12,6 +12,7 @@ using RealtyModel.Service;
 using RealtyModel.Exceptions;
 using RealtorServer.Model.DataBase;
 using System.Windows.Media.Imaging;
+using System.Windows;
 
 namespace RealtorServer.Model.NET
 {
@@ -42,13 +43,11 @@ namespace RealtorServer.Model.NET
                         else if (action == Act.Request)
                         {
                             if (operation.Parameters.Target == Target.Query)
-                                PrepareResponse(operation);
-                            else if (operation.Parameters.Target == Target.CompressedPhoto)
-                                ReturnCompressedAlbumAsync(operation);
+                                PrepareObjectsAsync(operation);
                             else if (operation.Parameters.Target == Target.Photo)
-                                ReturnFullAlbumAsync(operation);
+                                PrepareAlbumAsync(operation);
                             else if (operation.Parameters.Target == Target.Lists)
-                                PrepareLocationOptions(operation);
+                                PrepareLocationOptionsAsync(operation);
                         }
                         else throw new InformationalException("operation action was wrong");
                     }
@@ -68,62 +67,7 @@ namespace RealtorServer.Model.NET
             });
         }
 
-        private async void ReturnFullAlbumAsync(Operation operation)
-        {
-            await Task.Run(() =>
-            {
-                try
-                {
-                    Int32 key = BinarySerializer.Deserialize<Int32>(operation.Data);
-                    Album album;
-
-                    using (RealtyContext context = new RealtyContext())
-                        album = context.Albums.FirstOrDefault(ph => ph.Id == key);
-
-                    if (album != null)
-                    {
-                        operation.Data = BinarySerializer.Serialize(album);
-                        operation.IsSuccessfully = true;
-                    }
-                    OutcomingOperations.Enqueue(operation);
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(SendResponse) {ex.Message}\n\n");
-                    operation.IsSuccessfully = false;
-                    OutcomingOperations.Enqueue(operation);
-                }
-            });
-        }
-        private async void ReturnCompressedAlbumAsync(Operation operation)
-        {
-            await Task.Run(() =>
-            {
-                try
-                {
-                    Int32 key = BinarySerializer.Deserialize<Int32>(operation.Data);
-                    Album compressedAlbum;
-
-                    using (RealtyContext context = new RealtyContext())
-                        compressedAlbum = context.CompressedAlbums.FirstOrDefault(ph => ph.Id == key);
-
-                    if (compressedAlbum != null)
-                    {
-                        operation.Data = BinarySerializer.Serialize(compressedAlbum);
-                        operation.IsSuccessfully = true;
-                    }
-                    OutcomingOperations.Enqueue(operation);
-                }
-                catch (Exception ex)
-                {
-                    LogError($"(SendResponse) {ex.Message}\n\n");
-                    operation.IsSuccessfully = false;
-                    OutcomingOperations.Enqueue(operation);
-                }
-            });
-        }
-
-        private async void PrepareResponse(Operation operation)
+        private async void PrepareObjectsAsync(Operation operation)
         {
             await Task.Run(() =>
             {
@@ -156,19 +100,45 @@ namespace RealtorServer.Model.NET
                 }
                 catch (InformationalException ex)
                 {
-                    LogInfo($"(SendResponse) {ex.Message}\n\n");
+                    LogInfo($"(PrepareObjectsAsync) {ex.Message}\n\n");
                     operation.IsSuccessfully = false;
                     OutcomingOperations.Enqueue(operation);
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(SendResponse) {ex.Message}\n\n");
+                    LogError($"(PrepareObjectsAsync) {ex.Message}\n\n");
                     operation.IsSuccessfully = false;
                     OutcomingOperations.Enqueue(operation);
                 }
             });
         }
-        private async void PrepareLocationOptions(Operation operation)
+        private async void PrepareAlbumAsync(Operation operation)
+        {
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Int32 key = BinarySerializer.Deserialize<Int32>(operation.Data);
+
+                    Album album;
+                    using (RealtyContext context = new RealtyContext())
+                        album = context.Albums.FirstOrDefault(ph => ph.Id == key);
+                    if (album != null)
+                    {
+                        operation.Data = album.PhotoCollection;
+                        operation.IsSuccessfully = true;
+                    }
+                    OutcomingOperations.Enqueue(operation);
+                }
+                catch (Exception ex)
+                {
+                    LogError($"(PrepareAlbumAsync) {ex.Message}\n\n");
+                    operation.IsSuccessfully = false;
+                    OutcomingOperations.Enqueue(operation);
+                }
+            });
+        }
+        private async void PrepareLocationOptionsAsync(Operation operation)
         {
             await Task.Run(() =>
             {
@@ -177,15 +147,9 @@ namespace RealtorServer.Model.NET
                     LocationOptions lists = new LocationOptions();
                     using (RealtyContext context = new RealtyContext())
                     {
-                        if (context.Cities.Local.Count > 0)
-                            lists.Cities = new ObservableCollection<City>(context.Cities.Local);
-                        else lists.Cities = new ObservableCollection<City>();
-                        if (context.Districts.Local.Count > 0)
-                            lists.Districts = new ObservableCollection<District>(context.Districts.Local);
-                        else lists.Districts = new ObservableCollection<District>();
-                        if (context.Streets.Local.Count > 0)
-                            lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
-                        else lists.Streets = new ObservableCollection<Street>();
+                        lists.Cities = new ObservableCollection<City>(context.Cities.Local);
+                        lists.Districts = new ObservableCollection<District>(context.Districts.Local);
+                        lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
 
                         operation.Data = BinarySerializer.Serialize<LocationOptions>(lists);
                         operation.IsSuccessfully = true;
@@ -193,7 +157,7 @@ namespace RealtorServer.Model.NET
                 }
                 catch (Exception ex)
                 {
-                    LogError($"(AddFlat) {ex.Message}");
+                    LogError($"(PrepareLocationOptionsAsync) {ex.Message}");
                     operation.IsSuccessfully = false;
                 }
                 finally
@@ -236,20 +200,22 @@ namespace RealtorServer.Model.NET
                 operation.Data = new byte[0];
                 if (!FindDuplicate(Target.Flat, newFlat.Location))
                 {
-                    using (RealtyContext context = new RealtyContext())
-                    {
-                        if (AddAlbum(context, newFlat.Album))
+                    if (AddAlbum(newFlat.Album))
+                        if (AddFlat(newFlat))
                         {
-                            if (AddFlat(context, newFlat))
-                            {
-                                context.SaveChanges();
-                                operation.IsSuccessfully = true;
-                                LogInfo($"{operation.Name} has added a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
-                            }
-                            else LogInfo($"{operation.Number} couldn't save a flat");
+                            operation.IsSuccessfully = true;
+                            LogInfo($"{operation.Name} has added a flat {newFlat.Location.City.Name} {newFlat.Location.District.Name} {newFlat.Location.Street.Name} {newFlat.Location.HouseNumber} кв{newFlat.Location.FlatNumber}");
                         }
-                        else LogInfo($"{operation.Number} couldn't save an album");
-                    }
+                        else
+                        {
+                            using (RealtyContext context = new RealtyContext())
+                            {
+                                context.Albums.Remove(newFlat.Album);
+                                context.SaveChanges();
+                                LogInfo($"{operation.Number} couldn't save a flat");
+                            }
+                        }
+                    else LogInfo($"{operation.Number} couldn't save an album");
                 }
                 else LogInfo($"{operation.Number} there is a flat with such address");
             }
@@ -326,25 +292,30 @@ namespace RealtorServer.Model.NET
             }
         }
 
-        private Boolean AddFlat(RealtyContext context, Flat newFlat)
+        private Boolean AddFlat(Flat newFlat)
         {
             try
             {
-                if (newFlat.CustomerId > 0)
-                    newFlat.Customer = context.Customers.Find(newFlat.CustomerId) ?? newFlat.Customer;
-                if (newFlat.Location.CityId > 0)
-                    newFlat.Location.City = context.Cities.Find(newFlat.Location.CityId) ?? newFlat.Location.City;
-                if (newFlat.Location.DistrictId > 0)
-                    newFlat.Location.District = context.Districts.Find(newFlat.Location.DistrictId) ?? newFlat.Location.District;
-                if (newFlat.Location.StreetId > 0)
-                    newFlat.Location.Street = context.Streets.Find(newFlat.Location.StreetId) ?? newFlat.Location.Street;
+                using (RealtyContext context = new RealtyContext())
+                {
+                    if (newFlat.CustomerId > 0)
+                        newFlat.Customer = context.Customers.Find(newFlat.CustomerId) ?? newFlat.Customer;
+                    if (newFlat.Location.CityId > 0)
+                        newFlat.Location.City = context.Cities.Find(newFlat.Location.CityId) ?? newFlat.Location.City;
+                    if (newFlat.Location.DistrictId > 0)
+                        newFlat.Location.District = context.Districts.Find(newFlat.Location.DistrictId) ?? newFlat.Location.District;
+                    if (newFlat.Location.StreetId > 0)
+                        newFlat.Location.Street = context.Streets.Find(newFlat.Location.StreetId) ?? newFlat.Location.Street;
 
-                newFlat.RegistrationDate = DateTime.Now;
-                newFlat.LastUpdateTime = newFlat.RegistrationDate;
-                newFlat.RegistrationDate = newFlat.RegistrationDate;
+                    newFlat.AlbumId = newFlat.Album.Id;
+                    newFlat.RegistrationDate = DateTime.Now;
+                    newFlat.LastUpdateTime = newFlat.RegistrationDate;
+                    newFlat.RegistrationDate = newFlat.RegistrationDate;
 
-                context.Flats.Local.Add(newFlat);
-                return true;
+                    context.Flats.Local.Add(newFlat);
+                    context.SaveChanges();
+                    return true;
+                }
             }
             catch (Exception ex)
             {
@@ -352,30 +323,22 @@ namespace RealtorServer.Model.NET
                 return false;
             }
         }
-        private Boolean AddAlbum(RealtyContext context, Album album)
+        private Boolean AddAlbum(Album album)
         {
             try
             {
-                context.Albums.Add(album);
-                context.CompressedAlbums.Add(CompressAlbum(album.GetCopy()));
-                return true;
+                using (RealtyContext context = new RealtyContext())
+                {
+                    context.Albums.Add(album);
+                    context.SaveChanges();
+                    return true;
+                }
             }
             catch (Exception ex)
             {
                 LogError($"(AddAlbum) {ex.Message}\n\n");
                 return false;
             }
-        }
-        private Album CompressAlbum(Album album)
-        {
-            ObservableCollection<Byte[]> photos = new ObservableCollection<Byte[]>();
-            foreach (Byte[] array in BinarySerializer.Deserialize<ObservableCollection<Byte[]>>(album.PhotoCollection))
-            {
-                BitmapImage image = BitmapImageDecoder.ResizeImageByWidth(array, 150);
-                photos.Add(BinarySerializer.Serialize(image));
-            }
-            album.PhotoCollection = BinarySerializer.Serialize(photos);
-            return album;
         }
 
         private Boolean ChangeProperties(BaseRealtorObject fromObject, BaseRealtorObject toObject, Operation operation)
@@ -449,7 +412,7 @@ namespace RealtorServer.Model.NET
             toObject.Location.HasBanner = fromObject.Location.HasBanner;
             toObject.Location.HasExchange = fromObject.Location.HasExchange;
         }
-        
+
         private Boolean FindDuplicate(Target target, Location location = null, Customer customer = null)
         {
             using (RealtyContext realtyDB = new RealtyContext())
@@ -473,6 +436,17 @@ namespace RealtorServer.Model.NET
                 //                                             cus.PhoneNumbers == customer.PhoneNumbers);
                 else return false;
             }
+        }
+        private Album CompressAlbum(Album album)
+        {
+            ObservableCollection<Byte[]> photos = new ObservableCollection<Byte[]>();
+            foreach (Byte[] array in BinarySerializer.Deserialize<ObservableCollection<Byte[]>>(album.PhotoCollection))
+            {
+                //BitmapImage image = BitmapImageDecoder.ResizeImageByWidth(array, 150);
+                //photos.Add(BinarySerializer.Serialize(image));
+            }
+            album.PhotoCollection = BinarySerializer.Serialize(photos);
+            return album;
         }
         private void ClearDB()
         {

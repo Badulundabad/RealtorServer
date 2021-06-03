@@ -17,6 +17,7 @@ using RealtorServer.Model.DataBase;
 using RealtorServer.Model.NET;
 using NLog;
 using RealtyModel.Exceptions;
+using System.Collections.Specialized;
 
 namespace RealtorServer.ViewModel
 {
@@ -73,8 +74,9 @@ namespace RealtorServer.ViewModel
             Server = new LocalServer(Dispatcher.CurrentDispatcher);
             Server.Clients.CollectionChanged += (s, e) =>
             {
-                foreach (LocalClient client in e.NewItems)
-                    client.Disconnected += (sender, evArgs) => IdentityServer.Logout(client.IpAddress.ToString());
+                if (e.Action == NotifyCollectionChangedAction.Add)
+                    foreach (LocalClient client in e.NewItems)
+                        client.Disconnected += (sender, evArgs) => IdentityServer.Logout(client.IpAddress.ToString());
             };
             RealtyServer = new RealtyServer(Dispatcher.CurrentDispatcher, Server.OutcomingOperations);
             IdentityServer = new IdentityServer(Dispatcher.CurrentDispatcher, Server.OutcomingOperations);

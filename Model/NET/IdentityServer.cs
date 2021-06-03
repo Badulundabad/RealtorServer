@@ -13,7 +13,7 @@ namespace RealtorServer.Model.NET
 {
     public class IdentityServer : Server
     {
-        private CredentialContext credentialContext = new CredentialContext();
+        private List<Credential> LoggedInCredentials = new List<Credential>();
         public IdentityServer(Dispatcher dispatcher, Queue<Operation> queue) : base(dispatcher)
         {
             Dispatcher = dispatcher;
@@ -28,17 +28,20 @@ namespace RealtorServer.Model.NET
                 {
                     try
                     {
-                        String password = BinarySerializer.Deserialize<String>(operation.Data);
-                        Credential credential = FindMatchingCredential(operation.Name, password);
-
-                        if (operation.Parameters.Action == Act.Login && credential != null)
-                            Login(operation, credential);
-                        else if (operation.Parameters.Action == Act.Logout && CheckAccess(operation.IpAddress, operation.Token))
-                            Logout(operation, credential);
-                        else if (operation.Parameters.Action == Act.Register && credential == null)
-                            Register(operation);
+                        if (operation.Parameters.Action == Act.Logout)
+                            Logout(operation);
                         else
-                            LogInfo($"something went wrong with {operation.Number}");
+                        {
+                            String password = BinarySerializer.Deserialize<String>(operation.Data);
+                            Credential credential = FindMatchingCredential(operation.Name, password);
+
+                            if (operation.Parameters.Action == Act.Login && credential != null)
+                                Login(operation, credential);
+                            else if (operation.Parameters.Action == Act.Register && credential == null)
+                                Register(operation);
+                            else
+                                LogInfo($"something went wrong with {operation.Number}");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -54,6 +57,7 @@ namespace RealtorServer.Model.NET
             {
                 credential.IpAddress = operation.IpAddress;
                 credential.Token = GetToken();
+                LoggedInCredentials.Add(credential);
 
                 LogInfo($"{operation.IpAddress} has logged in as {credential.Name}");
 
@@ -71,14 +75,17 @@ namespace RealtorServer.Model.NET
                 OutcomingOperations.Enqueue(operation);
             }
         }
-        private void Logout(Operation operation, Credential credential)
+        private void Logout(Operation operation)
         {
             try
             {
-                credential.IpAddress = "";
-                credential.Token = (new Guid().ToString());
-                LogInfo($"{credential.Name} has logged out");
-                operation.IsSuccessfully = true;
+                Credential credential = LoggedInCredentials.FirstOrDefault(c => c.IpAddress == operation.IpAddress && c.Name == operation.Name);
+                if (credential != null)
+                {
+                    LoggedInCredentials.Remove(credential);
+                    LogInfo($"{credential.Name} has logged out");
+                    operation.IsSuccessfully = true;
+                }
             }
             catch (Exception ex)
             {
@@ -92,28 +99,31 @@ namespace RealtorServer.Model.NET
         }
         public void Logout(String ipAddress)
         {
-            Credential credential = credentialContext.Credentials.FirstOrDefault(c => c.IpAddress == ipAddress);
+            Credential credential = LoggedInCredentials.FirstOrDefault(c => c.IpAddress == ipAddress);
             if (credential != null)
             {
-                credential.Token = "";
-                credential.IpAddress = "";
+                LoggedInCredentials.Remove(credential);
+                LogInfo($"{credential.Name} has logged out");
             }
         }
         private void Register(Operation operation)
         {
             try
             {
-                Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
-                if (FindMatchingCredential(credential.Name, credential.Password) == null)
+                using (CredentialContext context = new CredentialContext())
                 {
-                    credential.RegistrationDate = DateTime.Now;
-                    credentialContext.Credentials.Local.Add(credential);
-                    credentialContext.SaveChanges();
+                    Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
+                    if (FindMatchingCredential(credential.Name, credential.Password) == null)
+                    {
+                        credential.RegistrationDate = DateTime.Now;
+                        context.Credentials.Local.Add(credential);
+                        context.SaveChanges();
 
-                    LogInfo($"{operation.Name} has registered");
-                    operation.IsSuccessfully = true;
+                        LogInfo($"{operation.Name} has registered");
+                        operation.IsSuccessfully = true;
+                    }
+                    else throw new InformationalException("such user already exists");
                 }
-                else throw new InformationalException("such user already exists");
             }
             catch (InformationalException ex)
             {
@@ -148,20 +158,24 @@ namespace RealtorServer.Model.NET
 
         private Credential FindMatchingCredential(String name, String password)
         {
-            return credentialContext.Credentials.FirstOrDefault(cred =>
-                                                                cred.Name == name &&
-                                                                cred.Password == password);
+            using (CredentialContext context = new CredentialContext())
+                return context.Credentials.FirstOrDefault(cred =>
+                                                                 cred.Name == name &&
+                                                                 cred.Password == password);
         }
         private Boolean CheckForLogin(String ipAddress, String token)
         {
-            if (credentialContext.Credentials.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null)
-                return true;
-            else return false;
+            using (CredentialContext context = new CredentialContext())
+            {
+                if (context.Credentials.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null)
+                    return true;
+                else return false;
+            }
         }
         public Boolean CheckAccess(String ipAddress, String token)
         {
-            //if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null) return true;
-            if (credentialContext.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress) != null)
+            //if (context.Credentials.Local.FirstOrDefault(cred => cred.IpAddress == ipAddress && cred.Token == token) != null) return true;
+            if (LoggedInCredentials.FirstOrDefault(cred => cred.IpAddress == ipAddress) != null)
                 return true;
             else return false;
         }

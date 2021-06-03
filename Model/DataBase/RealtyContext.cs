@@ -10,13 +10,12 @@ namespace RealtorServer.Model.DataBase
         public RealtyContext() : base("RealtyDBConnection")
         {
             Flats.Load();
-            Houses.Load();
+            //Houses.Load();
             Cities.Load();
             Districts.Load();
             Streets.Load();
             Locations.Load();
             Albums.Load();
-            CompressedAlbums.Load();
             Customers.Load();
         }
 
@@ -29,7 +28,6 @@ namespace RealtorServer.Model.DataBase
         public DbSet<Street> Streets { get; set; }
 
         public DbSet<Album> Albums { get; set; }
-        public DbSet<Album> CompressedAlbums { get; set; }
 
         public DbSet<Customer> Customers { get; set; }
     }
