@@ -38,7 +38,12 @@ namespace RealtorServer.Model.NET
                     {
                         realtyContext.Albums.Add(flat.Album);
                         realtyContext.SaveChanges();
+
                         flat.AlbumId = flat.Album.Id;
+                        flat.RegistrationDate = DateTime.Now;
+                        flat.LastUpdateTime = flat.RegistrationDate;
+                        flat.RegistrationDate = flat.RegistrationDate;
+                        
                         realtyContext.Flats.Add(flat);
                         realtyContext.SaveChanges();
                         LogInfo($"Flat has registered");

@@ -22,15 +22,15 @@ namespace RealtorServer.Model.NET
             {
                 Location location = baseRealtorObject.Location;
                 if (baseRealtorObject is Flat)
-                    return context.Flats.Local.Any(bro => bro.Location.City == location.City
-                        && bro.Location.District == location.District
-                        && bro.Location.Street == location.Street 
+                    return context.Flats.Local.Any(bro => bro.Location.City.Name == location.City.Name
+                        && bro.Location.District.Name == location.District.Name
+                        && bro.Location.Street.Name == location.Street.Name
                         && bro.Location.HouseNumber == location.HouseNumber 
                         && bro.Location.FlatNumber == location.FlatNumber);
                 else
-                    return context.Houses.Local.Any(bro => bro.Location.City == location.City
-                        && bro.Location.District == location.District
-                        && bro.Location.Street == location.Street 
+                    return context.Houses.Local.Any(bro => bro.Location.City.Name == location.City.Name
+                        && bro.Location.District.Name == location.District.Name
+                        && bro.Location.Street.Name == location.Street.Name
                         && bro.Location.HouseNumber == location.HouseNumber);
             }
         }

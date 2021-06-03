@@ -4,23 +4,42 @@ using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
 using RealtyModel.Service;
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RealtorServer.Model.NET
 {
     class Requesting : OperationHandling
     {
-        public Requesting(Operation operation) {
+        public Requesting(Operation operation)
+        {
             this.operation = operation;
         }
-        private Response GetLocations() {
+        public override Response Handle()
+        {
+            if (operation.Target == Target.Locations)
+            {
+                return GetLocations();
+            }
+            else if (operation.Target == Target.RealtorObjects)
+            {
+                return GetRealtorObjects();
+            }
+            else if (operation.Target == Target.Album)
+            {
+                return GetAlbum();
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
+        }
+
+        private Response GetLocations()
+        {
             LocationOptions lists = new LocationOptions();
-            using (RealtyContext context = new RealtyContext()) {
+            using (RealtyContext context = new RealtyContext())
+            {
                 lists.Cities = new ObservableCollection<City>(context.Cities.Local);
                 lists.Districts = new ObservableCollection<District>(context.Districts.Local);
                 lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
@@ -28,29 +47,52 @@ namespace RealtorServer.Model.NET
             Response response = new Response(BinarySerializer.Serialize(lists));
             if (lists.Cities.Count == 0
                 && lists.Districts.Count == 0
-                && lists.Streets.Count == 0) {
+                && lists.Streets.Count == 0)
+            {
                 response.Code = ErrorCode.NoLocations;
             }
             return response;
         }
-        private Response GetRealtorObjects() {
-            using (RealtyContext realtyContext = new RealtyContext()) {
-                Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
-                Flat[] flats = filter.FilterFlats(realtyContext.Flats.Local.ToArray());
-                House[] houses = Array.Empty<House>();
-                Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats, houses);
-                Response response = new Response(BinarySerializer.Serialize(objects), ErrorCode.NoCode);
-                return response;
+        private Response GetRealtorObjects()
+        {
+            Response response = new Response(new Byte[0], ErrorCode.NoCode);
+            try
+            {
+                using (RealtyContext realtyContext = new RealtyContext())
+                {
+                    Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
+                    Flat[] flats = filter.FilterFlats(realtyContext.Flats.Local.ToArray());
+                    House[] houses = Array.Empty<House>();
+                    Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats, houses);
+                    response.Data = BinarySerializer.Serialize(objects);
+                }
             }
+            catch (Exception ex)
+            {
+                LogError($"(GetRealtorObjects) {ex.Message}");
+                response.Code = ErrorCode.Unknown;
+            }
+            return response;
         }
-        public override Response Handle() {
-            if (operation.Target == Target.Locations) {
-                return GetLocations();
-            } else if (operation.Target == Target.RealtorObjects) {
-                return GetRealtorObjects();
-            } else {
-                throw new NotImplementedException();
+        private Response GetAlbum()
+        {
+            Response response = new Response(new byte[0], ErrorCode.NoCode);
+            try
+            {
+                Int32 id = BinarySerializer.Deserialize<Int32>(operation.Data);
+                using (RealtyContext context = new RealtyContext())
+                {
+                    Album album = context.Albums.FirstOrDefault(alb => alb.Id == id);
+                    if (album != null)
+                        response.Data = album.PhotoCollection;
+                }
             }
+            catch (Exception ex)
+            {
+                LogError($"(GetAlbum) {ex.Message}");
+                response.Code = ErrorCode.Unknown;
+            }
+            return response;
         }
     }
 }

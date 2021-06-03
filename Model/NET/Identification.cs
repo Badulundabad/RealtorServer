@@ -10,28 +10,37 @@ using Action = RealtyModel.Model.Operations.Action;
 
 namespace RealtorServer.Model.NET
 {
-    class Identification : OperationHandling {
-        public Identification() {
+    class Identification : OperationHandling
+    {
+        public Identification()
+        {
         }
-        public Identification(Operation operation) {
+        public Identification(Operation operation)
+        {
             this.operation = operation;
         }
-        private Response VerifyCredentials() {
+
+        private Response VerifyCredentials()
+        {
             Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
             bool hasMatchingCredentials = new CredentialContext().Credentials.FirstOrDefault(x => x.Name == credential.Name && x.Password == credential.Password) != null;
-            if (hasMatchingCredentials) {
+            if (hasMatchingCredentials)
                 return new Response(BinarySerializer.Serialize(true));
-            } else {
+            else
                 return new Response(BinarySerializer.Serialize(false), ErrorCode.Credential);
-            }
         }
-        private Response Registry() {
+        private Response Registry()
+        {
             throw new NotImplementedException();
         }
-        public override Response Handle() {
-            if (operation.Action == Action.Login) {
+        public override Response Handle()
+        {
+            if (operation.Action == Action.Login)
+            {
                 return VerifyCredentials();
-            } else {
+            }
+            else
+            {
                 return Registry();
             }
         }

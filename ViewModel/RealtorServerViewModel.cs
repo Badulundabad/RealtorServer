@@ -33,7 +33,7 @@ namespace RealtorServer.ViewModel
         #endregion
 
         public RealtorServerViewModel() {
-            server = new Server(Dispatcher.CurrentDispatcher);
+            server = new Server();
             ClearDB();
             Dispatcher.CurrentDispatcher.BeginInvoke(new System.Action(() => server.RunAsync()));
         }
