@@ -52,6 +52,5 @@ namespace RealtorServer.Model.NET
                 throw new NotImplementedException();
             }
         }
-
     }
 }

@@ -1,31 +1,22 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using NLog;
-using RealtyModel.Model;
 using RealtyModel.Service;
 using RealtyModel.Model.Operations;
 using Action = RealtyModel.Model.Operations.Action;
 
 namespace RealtorServer.Model.NET
 {
-    public class Server : INotifyPropertyChanged
+    public class Server
     {
         private TcpListener tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 15000);
         private NetworkStream network;  
         private Dispatcher dispatcher;
         private static Logger logger = LogManager.GetCurrentClassLogger();
-        protected object handleLocker = new object();
-        public event PropertyChangedEventHandler PropertyChanged;
         public Dispatcher Dispatcher {
             get => dispatcher;
             protected set {
@@ -70,9 +61,6 @@ namespace RealtorServer.Model.NET
         protected void LogError(String text) {
             Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name}     {text}\n");
             logger.Error($"{this.GetType().Name} {text}");
-        }
-        protected void OnProperyChanged([CallerMemberName] string prop = null) {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(prop));
         }
     }
 }
