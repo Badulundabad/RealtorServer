@@ -77,7 +77,6 @@ C:\Users\Public\Projects\RealtorServer\bin\Debug\RealtyModel.pdb
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtyModel.dll
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtyModel.pdb
 C:\Users\Public\Projects\RealtorServer\bin\Debug\ImageTranscoding.pdb
-C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csprojAssemblyReference.cache
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\View\MainWindow.g.cs
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\App.g.cs
 C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer_MarkupCompile.cache
@@ -204,3 +203,4 @@ C:\Users\Gvozd\Documents\GitHub\RealtorServer\obj\Debug\RealtorServer.csproj.Cor
 C:\Users\Gvozd\Documents\GitHub\RealtorServer\obj\Debug\RealtorServer.csproj.CopyComplete
 C:\Users\Gvozd\Documents\GitHub\RealtorServer\obj\Debug\RealtorServer.exe
 C:\Users\Gvozd\Documents\GitHub\RealtorServer\obj\Debug\RealtorServer.pdb
+C:\Users\Badulundabad\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.AssemblyReference.cache

@@ -141,8 +141,6 @@
     <Compile Include="Model\NET\Adding.cs" />
     <Compile Include="Model\NET\OperationHandling.cs" />
     <Compile Include="Model\NET\Identification.cs" />
-    <Compile Include="Model\NET\IdentityServer.cs" />
-    <Compile Include="Model\NET\RealtyServer.cs" />
     <Compile Include="Model\NET\Requesting.cs" />
     <Compile Include="Model\NET\Server.cs" />
     <Compile Include="Model\NET\Updating.cs" />

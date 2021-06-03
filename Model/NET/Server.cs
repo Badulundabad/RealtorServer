@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
-using System.Windows.Threading;
 using NLog;
 using RealtyModel.Service;
 using RealtyModel.Model.Operations;
@@ -14,53 +13,73 @@ namespace RealtorServer.Model.NET
     public class Server
     {
         private TcpListener tcpListener = new TcpListener(IPAddress.Parse("127.0.0.1"), 15000);
-        private NetworkStream network;  
-        private Dispatcher dispatcher;
+        private NetworkStream network;
         private static Logger logger = LogManager.GetCurrentClassLogger();
-        public Dispatcher Dispatcher {
-            get => dispatcher;
-            protected set {
-                dispatcher = value;
-            }
-        }
-        public Server(Dispatcher dispatcher) {
-            this.dispatcher = dispatcher;
+
+        public Server()
+        {
         }
 
-        private OperationHandling ChooseHandler(Operation operation) {
-            if (operation.Action == Action.Login || operation.Action == Action.Register) {
-                return new Identification(operation);
-            } else if (operation.Action == Action.Request){
-                return new Requesting(operation);
-            } else if (operation.Action == Action.Add) {
-                return new Adding(operation);
-            } else if (operation.Action == Action.Update) {
-                return new Updating(operation);
-            } 
-            else {
-                throw new NotImplementedException();
-            }
-        }
-        public async void RunAsync() {
-            await Task.Run(() => {
+        public async void RunAsync()
+        {
+            await Task.Run(() =>
+            {
                 tcpListener.Start();
-                while (true) {
-                    TcpClient client = tcpListener.AcceptTcpClient();
-                    network = client.GetStream();
-                    Operation operation = Transfer.ReceiveOperation(network);
-                    
-                    Response response = ChooseHandler(operation).Handle();
-                    Transfer.SendResponse(response, network);
+                LogInfo("Server has started to listen");
+                while (true)
+                {
+                    try
+                    {
+                        using (TcpClient client = tcpListener.AcceptTcpClient())
+                        {
+                            LogInfo($"{((IPEndPoint)client.Client.RemoteEndPoint).Address} has connected");
+                            network = client.GetStream();
+
+                            Operation operation = Transfer.ReceiveOperation(network);
+                            Response response = ChooseHandler(operation).Handle();
+                            Transfer.SendResponse(response, network);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        LogError($"(RunAsync) {ex.Message}");
+                    }
                 }
             });
         }
-        protected void LogInfo(String text) {
-            Debug.WriteLine($"{DateTime.Now} {this.GetType().Name}   {text}");
-            logger.Info($"{this.GetType().Name} {text}");
+        private OperationHandling ChooseHandler(Operation operation)
+        {
+            if (operation.Action == Action.Login || operation.Action == Action.Register)
+            {
+                return new Identification(operation);
+            }
+            else if (operation.Action == Action.Request)
+            {
+                return new Requesting(operation);
+            }
+            else if (operation.Action == Action.Add)
+            {
+                return new Adding(operation);
+            }
+            else if (operation.Action == Action.Update)
+            {
+                return new Updating(operation);
+            }
+            else
+            {
+                throw new NotImplementedException();
+            }
         }
-        protected void LogError(String text) {
-            Debug.WriteLine($"\n{DateTime.Now} ERROR {this.GetType().Name}     {text}\n");
-            logger.Error($"{this.GetType().Name} {text}");
+
+        private void LogInfo(String text)
+        {
+            Debug.WriteLine($"{DateTime.Now} INFO    {text}");
+            logger.Info($"    {text}");
+        }
+        private void LogError(String text)
+        {
+            Debug.WriteLine($"\n{DateTime.Now} ERROR    {text}\n");
+            logger.Error($"    {text}");
         }
     }
 }
