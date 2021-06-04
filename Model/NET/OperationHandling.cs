@@ -22,16 +22,16 @@ namespace RealtorServer.Model.NET
             {
                 Location location = baseRealtorObject.Location;
                 if (baseRealtorObject is Flat)
-                    return context.Flats.Local.Any(bro => bro.Location.City.Name == location.City.Name
-                        && bro.Location.District.Name == location.District.Name
+                    return context.Flats.Local.Any(bro => bro.Location.City == location.City
+                        && bro.Location.District == location.District
                         && bro.Location.Street.Name == location.Street.Name
-                        && bro.Location.HouseNumber == location.HouseNumber 
+                        && bro.Location.HouseNumber.Equals(location.HouseNumber, StringComparison.OrdinalIgnoreCase)
                         && bro.Location.FlatNumber == location.FlatNumber);
                 else
-                    return context.Houses.Local.Any(bro => bro.Location.City.Name == location.City.Name
-                        && bro.Location.District.Name == location.District.Name
+                    return context.Houses.Local.Any(bro => bro.Location.City == location.City
+                        && bro.Location.District == location.District
                         && bro.Location.Street.Name == location.Street.Name
-                        && bro.Location.HouseNumber == location.HouseNumber);
+                        && bro.Location.HouseNumber.Equals(location.HouseNumber, StringComparison.OrdinalIgnoreCase));
             }
         }
         public virtual Response Handle()
@@ -42,16 +42,23 @@ namespace RealtorServer.Model.NET
         protected void LogInfo(String text)
         {
             Debug.WriteLine($"{DateTime.Now} INFO    {text}");
+            Console.WriteLine($"{DateTime.Now} INFO    {text}");
             logger.Info($"    {text}");
         }
         protected void LogWarn(String text)
         {
             Debug.WriteLine($"{DateTime.Now} WARN    {text}");
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"{DateTime.Now} WARN    {text}");
+            Console.ForegroundColor = ConsoleColor.White;
             logger.Warn($"    {text}");
         }
         protected void LogError(String text)
         {
             Debug.WriteLine($"\n{DateTime.Now} ERROR    {text}\n");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"{DateTime.Now} ERROR    {text}");
+            Console.ForegroundColor = ConsoleColor.White;
             logger.Error($"    {text}");
         }
     }

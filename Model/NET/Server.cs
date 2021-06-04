@@ -19,7 +19,7 @@ namespace RealtorServer.Model.NET
         public Server()
         {
             if (Debugger.IsAttached)
-                tcpListener = new TcpListener(IPAddress.Parse("192.168.1.111"), 15000);
+                tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
             else tcpListener = new TcpListener(IPAddress.Parse("192.168.1.250"), 15000);
         }
 
@@ -77,11 +77,15 @@ namespace RealtorServer.Model.NET
         private void LogInfo(String text)
         {
             Debug.WriteLine($"{DateTime.Now} INFO    {text}");
+            Console.WriteLine($"{DateTime.Now} INFO    {text}");
             logger.Info($"    {text}");
         }
         private void LogError(String text)
         {
             Debug.WriteLine($"\n{DateTime.Now} ERROR    {text}\n");
+            Console.ForegroundColor = ConsoleColor.Red;
+            Console.WriteLine($"{DateTime.Now} ERROR    {text}");
+            Console.ForegroundColor = ConsoleColor.White;
             logger.Error($"    {text}");
         }
     }

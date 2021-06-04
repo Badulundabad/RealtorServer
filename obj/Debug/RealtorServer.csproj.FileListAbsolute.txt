@@ -2,11 +2,6 @@ C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtorServer.
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtorServer.exe
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RealtorServer.pdb
 C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer.csprojAssemblyReference.cache
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\View\MainWindow.g.cs
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\App.g.cs
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer_MarkupCompile.cache
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer_MarkupCompile.lref
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\View\MainWindow.baml
 C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer.g.resources
 C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer.Properties.Resources.resources
 C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer.csproj.GenerateResource.cache
@@ -126,7 +121,6 @@ C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\NLog.dll
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.dll
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\NLog.xml
 C:\Users\Бадулундабад\Desktop\RealtorServer\bin\Debug\RandomFlatGenerator.pdb
-C:\Users\Бадулундабад\Desktop\RealtorServer\obj\Debug\RealtorServer_Content.g.cs
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\credentials.db
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\realty.db
 C:\Users\Badulundabad\Desktop\RealtorServer\bin\Debug\System.ValueTuple.dll

@@ -19,7 +19,7 @@ namespace RealtorServer.Model.NET
         {
             if (operation.Target == Target.Locations)
             {
-                return GetLocations();
+                return GetStreets();
             }
             else if (operation.Target == Target.RealtorObjects)
             {
@@ -35,19 +35,15 @@ namespace RealtorServer.Model.NET
             }
         }
 
-        private Response GetLocations()
+        private Response GetStreets()
         {
-            LocationOptions lists = new LocationOptions();
+            Street[] streets;
             using (RealtyContext context = new RealtyContext())
             {
-                lists.Cities = new ObservableCollection<City>(context.Cities.Local);
-                lists.Districts = new ObservableCollection<District>(context.Districts.Local);
-                lists.Streets = new ObservableCollection<Street>(context.Streets.Local);
+                streets = context.Streets.Local.ToArray();
             }
-            Response response = new Response(BinarySerializer.Serialize(lists));
-            if (lists.Cities.Count == 0
-                && lists.Districts.Count == 0
-                && lists.Streets.Count == 0)
+            Response response = new Response(BinarySerializer.Serialize(streets));
+            if (streets.Length == 0)
             {
                 response.Code = ErrorCode.NoLocations;
             }
