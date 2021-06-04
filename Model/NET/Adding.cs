@@ -34,18 +34,27 @@ namespace RealtorServer.Model.NET
                 Flat flat = BinarySerializer.Deserialize<Flat>(operation.Data);
                 if (!FindLocationDuplicate(flat))
                 {
-                    using (RealtyContext realtyContext = new RealtyContext())
+                    using (RealtyContext context = new RealtyContext())
                     {
-                        realtyContext.Albums.Add(flat.Album);
-                        realtyContext.SaveChanges();
+                        context.Albums.Add(flat.Album);
+                        context.SaveChanges();
+
+                        if (flat.Customer.Id > 0)
+                            flat.Customer = context.Customers.Find(flat.Customer.Id) ?? flat.Customer;
+                        if (flat.Location.City.Id > 0)
+                            flat.Location.City = context.Cities.Find(flat.Location.City.Id) ?? flat.Location.City;
+                        if (flat.Location.District.Id > 0)
+                            flat.Location.District = context.Districts.Find(flat.Location.District.Id) ?? flat.Location.District;
+                        if (flat.Location.Street.Id > 0)
+                            flat.Location.Street = context.Streets.Find(flat.Location.Street.Id) ?? flat.Location.Street;
 
                         flat.AlbumId = flat.Album.Id;
                         flat.RegistrationDate = DateTime.Now;
                         flat.LastUpdateTime = flat.RegistrationDate;
                         flat.RegistrationDate = flat.RegistrationDate;
                         
-                        realtyContext.Flats.Add(flat);
-                        realtyContext.SaveChanges();
+                        context.Flats.Add(flat);
+                        context.SaveChanges();
                         LogInfo($"Flat has registered");
                         response.Code = ErrorCode.FlatAddedSuccessfuly;
                     }

@@ -12,12 +12,15 @@ namespace RealtorServer.Model.NET
 {
     public class Server
     {
-        private TcpListener tcpListener = new TcpListener(IPAddress.Parse("192.168.8.102"), 15000);
+        private TcpListener tcpListener;
         private NetworkStream network;
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public Server()
         {
+            if (Debugger.IsAttached)
+                tcpListener = new TcpListener(IPAddress.Parse("192.168.1.111"), 15000);
+            else tcpListener = new TcpListener(IPAddress.Parse("192.168.1.250"), 15000);
         }
 
         public async void RunAsync()
