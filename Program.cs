@@ -6,13 +6,11 @@ namespace RealtorServer
 {
     class Program
     {
-        private static Server server = new Server();
-
         static void Main(string[] args)
         {
-            server.RunAsync();
             Console.Title = "RealtyServer";
             Console.BufferHeight = 1000;
+            new Server().RunAsync();
             String input = "";
             while (input != "stop")
                 input = Console.ReadLine();
