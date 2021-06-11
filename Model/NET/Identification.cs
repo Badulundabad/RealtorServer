@@ -29,20 +29,41 @@ namespace RealtorServer.Model.NET
             else
                 return new Response(BinarySerializer.Serialize(false), ErrorCode.Credential);
         }
-        private Response Registry()
+        private Response Register()
         {
-            throw new NotImplementedException();
+            try
+            {
+                Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
+                using (CredentialContext context = new CredentialContext())
+                {
+                    if (!context.Credentials.Any(cred => cred.Name == credential.Name))
+                    {
+                        context.Credentials.Add(credential);
+                        context.SaveChanges();
+                        LogInfo($"{credential.Name} has registered");
+                        return new Response(BinarySerializer.Serialize(true));
+                    }
+                    else
+                    {
+                        LogWarn($"Agent {credential.Name} already exists");
+                        return new Response(BinarySerializer.Serialize(false), ErrorCode.AgentExists);
+                    }
+                }
+            }
+            catch(Exception ex)
+            {
+                LogError($"(Register){ex.Message}\n{ex.InnerException}\n{ex.StackTrace}");
+                return new Response(BinarySerializer.Serialize(false), ErrorCode.Unknown);
+            }
         }
         public override Response Handle()
         {
             if (operation.Action == Action.Login)
-            {
                 return VerifyCredentials();
-            }
+            else if (operation.Action == Action.Register)
+                return Register();
             else
-            {
-                return Registry();
-            }
+                throw new Exception();
         }
     }
 }

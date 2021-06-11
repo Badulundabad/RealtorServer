@@ -33,31 +33,27 @@ namespace RealtorServer.Model.NET
                 Flat modifiedFlat = BinarySerializer.Deserialize<Flat>(operation.Data);
                 using (RealtyContext context = new RealtyContext())
                 {
-                    Flat flatToModify = context.Flats.Local.First(flat => flat.Id == modifiedFlat.Id);
+                    Flat flatToModify = context.Flats.First(flat => flat.Id == modifiedFlat.Id);
                     if (modifiedFlat.Album.PhotoCollection.Length > 0)
                     {
                         Album oldAlbum = context.Albums.Find(modifiedFlat.AlbumId);
                         if (oldAlbum != null)
                             oldAlbum.PhotoCollection = modifiedFlat.Album.PhotoCollection;
                     }
-                    if (modifiedFlat.Album.Location.Length > 0)
-                    {
-                        Album oldAlbum = context.Albums.Find(modifiedFlat.AlbumId);
-                        if (oldAlbum != null)
-                            oldAlbum.Location = modifiedFlat.Album.Location;
-                    }
-                    //if (modifiedFlat.Location.Street.Id > 0)
-                    //    flatToModify.Location.Street = context.Streets.Find(modifiedFlat.Location.Street.Id) ?? modifiedFlat.Location.Street;
+                    //if (modifiedFlat.Album.Location.Length > 0)
+                    //{
+                    //    Album oldAlbum = context.Albums.Find(modifiedFlat.AlbumId);
+                    //    if (oldAlbum != null)
+                    //        oldAlbum.Location = modifiedFlat.Album.Location;
+                    //}
                     if (!modifiedFlat.Location.Equals(flatToModify.Location))
                     {
-                        Debug.WriteLine("locations are not equal");
-                        flatToModify.Location.GetValues(modifiedFlat.Location);
+                        flatToModify.Location.City = modifiedFlat.Location.City;
+                        flatToModify.Location.District = modifiedFlat.Location.District;
+                        flatToModify.Location.HouseNumber = modifiedFlat.Location.HouseNumber;
+                        flatToModify.Location.FlatNumber = modifiedFlat.Location.FlatNumber;
                         if (flatToModify.Location.Street.Id != modifiedFlat.Location.Street.Id)
-                        {
-                            Debug.WriteLine("streets are not equal");
-                            flatToModify.Location.Street = context.Streets.Local.First(street => street.Id == flatToModify.Location.StreetId);
-                            flatToModify.Location.StreetId = flatToModify.Location.Street.Id;
-                        }
+                            flatToModify.Location.Street = context.Streets.Find(modifiedFlat.Location.Street.Id) ?? modifiedFlat.Location.Street;
                     }
                     flatToModify.Agent = modifiedFlat.Agent;
                     flatToModify.Cost = modifiedFlat.Cost;
