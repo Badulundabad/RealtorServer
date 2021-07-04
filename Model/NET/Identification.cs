@@ -41,7 +41,7 @@ namespace RealtorServer.Model.NET
                         context.Credentials.Add(credential);
                         context.SaveChanges();
                         LogInfo($"{credential.Name} has registered");
-                        return new Response(BinarySerializer.Serialize(true));
+                        return new Response(BinarySerializer.Serialize(true), ErrorCode.Successful);
                     }
                     else
                     {
@@ -50,7 +50,7 @@ namespace RealtorServer.Model.NET
                     }
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 LogError($"(Register){ex.Message}\n{ex.InnerException}\n{ex.StackTrace}");
                 return new Response(BinarySerializer.Serialize(false), ErrorCode.Unknown);

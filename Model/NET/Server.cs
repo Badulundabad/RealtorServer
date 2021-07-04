@@ -19,7 +19,7 @@ namespace RealtorServer.Model.NET
         public Server()
         {
             if (Debugger.IsAttached)
-                tcpListener = new TcpListener(IPAddress.Parse("192.168.1.53"), 15000);
+                tcpListener = new TcpListener(IPAddress.Parse("192.168.1.103"), 15000);
             else tcpListener = new TcpListener(IPAddress.Parse("192.168.1.250"), 15000);
         }
 
