@@ -25,7 +25,6 @@ namespace RealtorServer
                 realtyDB.Database.ExecuteSqlCommand("update sqlite_sequence set seq = 0 where name = 'Locations'");
                 realtyDB.Albums.Local.Clear();
                 realtyDB.Flats.Local.Clear();
-                realtyDB.Locations.Local.Clear();
                 realtyDB.SaveChanges();
             }
         }
