@@ -7,6 +7,7 @@ using NLog;
 using RealtyModel.Service;
 using RealtyModel.Model.Operations;
 using Action = RealtyModel.Model.Operations.Action;
+using System.Runtime.CompilerServices;
 
 namespace RealtorServer.Model.NET
 {
@@ -28,24 +29,26 @@ namespace RealtorServer.Model.NET
             await Task.Run(() =>
             {
                 tcpListener.Start();
-                LogInfo("Server has started to listen");
+                LogServerStart();
                 while (true)
                 {
                     try
                     {
                         using (TcpClient client = tcpListener.AcceptTcpClient())
                         {
-                            LogInfo($"{((IPEndPoint)client.Client.RemoteEndPoint).Address} has connected");
+                            string ipAddress = ((IPEndPoint)client.Client.RemoteEndPoint).Address.ToString();
+                            LogNewSession(ipAddress);
                             network = client.GetStream();
 
                             Operation operation = Transfer.ReceiveOperation(network);
+                            operation.Ip = ipAddress;
                             Response response = ChooseHandler(operation).Handle();
                             Transfer.SendResponse(response, network);
                         }
                     }
                     catch (Exception ex)
                     {
-                        LogError($"(RunAsync) {ex.Message}");
+                        LogError(ex.Message);
                     }
                 }
             });
@@ -73,19 +76,24 @@ namespace RealtorServer.Model.NET
                 throw new NotImplementedException();
             }
         }
-
-        private void LogInfo(String text)
-        {
-            Debug.WriteLine($"{DateTime.Now} INFO    {text}");
-            Console.WriteLine($"{DateTime.Now} INFO    {text}");
-            logger.Info($"    {text}");
+        private void LogServerStart() {
+            Debug.WriteLine($"{DateTime.Now} INFO    The server started listening\n");
+            Console.WriteLine($"{DateTime.Now} INFO    The server started listening\n");
+            logger.Info("");
+            logger.Info("");
+            logger.Info($"    The server started listening\n\n");
         }
-        private void LogError(String text)
-        {
-            Debug.WriteLine($"\n{DateTime.Now} ERROR    {text}\n");
+        private void LogNewSession(string text) {
+            Debug.WriteLine($"\n{DateTime.Now} INFO    {text} initiated a new session");
+            Console.WriteLine($"\n{DateTime.Now} INFO    {text} initiated a new session");
+            logger.Info("");
+            logger.Info($"    {text} initiated a new session");
+        }
+        private void LogError(String text) {
+            Debug.WriteLine($"{DateTime.Now} ERROR    {text}");
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"{DateTime.Now} ERROR    {text}");
-            Console.ForegroundColor = ConsoleColor.White;
+            Console.ResetColor();
             logger.Error($"    {text}");
         }
     }

@@ -10,7 +10,7 @@ namespace RealtorServer.Model.DataBase
         public RealtyContext() : base("RealtyDBConnection")
         {
             Flats.Load();
-            //Houses.Load();
+            Houses.Load();
             Streets.Load();
             Albums.Load();
         }

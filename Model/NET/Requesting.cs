@@ -32,9 +32,7 @@ namespace RealtorServer.Model.NET
                 streets = context.Streets.Local.ToArray();
             }
             Response response = new Response(BinarySerializer.Serialize(streets));
-            if (streets.Length == 0) {
-                response.Code = ErrorCode.NoLocations;
-            }
+            LogInfo($"Sent streets to {operation.Name}");
             return response;
         }
         private Response GetRealtorObjects() {
@@ -42,13 +40,14 @@ namespace RealtorServer.Model.NET
             try {
                 using (RealtyContext realtyContext = new RealtyContext()) {
                     Filter filter = BinarySerializer.Deserialize<Filter>(operation.Data);
-                    Flat[] flats = filter.FilterFlats(realtyContext.Flats.Local.ToArray());
-                    House[] houses = Array.Empty<House>();
+                    Flat[] flats = realtyContext.Flats.Local.ToArray();
+                    House[] houses = realtyContext.Houses.Local.ToArray();
                     Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats, houses);
                     response.Data = BinarySerializer.Serialize(objects);
+                    LogInfo($"Sent realtor objects to {operation.Name}");
                 }
             } catch (Exception ex) {
-                LogError($"(GetRealtorObjects) {ex.Message}");
+                LogError(ex.Message);
                 response.Code = ErrorCode.Unknown;
             }
             return response;
@@ -61,10 +60,11 @@ namespace RealtorServer.Model.NET
                     Album album = context.Albums.FirstOrDefault(a => a.Id == id);
                     if (album != null) {
                         response.Data = BinarySerializer.Serialize(album);
+                        LogInfo($"Sent album #{album.Id} to {operation.Name}");
                     }
                 }
             } catch (Exception ex) {
-                LogError($"(GetAlbum) {ex.Message}");
+                LogError(ex.Message);
                 response.Code = ErrorCode.Unknown;
             }
             return response;

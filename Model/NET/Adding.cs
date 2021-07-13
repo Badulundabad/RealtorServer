@@ -18,39 +18,53 @@ namespace RealtorServer.Model.NET
             if (operation.Target == Target.Flat) {
                 return AddFlat();
             } else {
-                LogWarn($"operation has a wrong target");
-                return new Response(Array.Empty<byte>(), ErrorCode.WrongTarget);
+                return AddHouse(); ;
             }
         }
-
-        private Response AddFlat() {
+        private Response AddHouse() {
             Response response = new Response(Array.Empty<byte>(), ErrorCode.Unknown);
-            //try
-            //{
-            Flat flat = BinarySerializer.Deserialize<Flat>(operation.Data);
-            if (!IsDuplicate(flat)) {
+            House house = BinarySerializer.Deserialize<House>(operation.Data);
+            if (!IsDuplicate(house)) {
                 using (RealtyContext context = new RealtyContext()) {
-                    flat.AlbumId = AddOrUpdateAlbum(flat.Album, context);
-                    SetDates(flat);
-                    AddStreetIfNotExist(flat, context);
-                    context.Flats.Add(flat);
+                    house.AlbumId = AddOrUpdateAlbum(house.Album, context);
+                    SetDates(house);
+                    AddStreetIfNotExist(house, context);
+                    context.Houses.Add(house);
                     context.SaveChanges();
-                    LogInfo($"Flat has been registered");
-                    response.Code = ErrorCode.FlatAddedSuccessfuly;
+                    LogInfo($"A new house was added by {operation.Name}");
+                    response.Code = ErrorCode.HouseAddedSuccessfuly;
                 }
             } else {
-                LogWarn("Flat already exists");
-                response.Code = ErrorCode.FlatDuplicate;
+                LogWarn($"{operation.Name} tried to add an existing house");
+                response.Code = ErrorCode.ObjectDuplicate;
             }
-            //}
-            //catch (Exception ex)
-            //{
-            //    LogError($"(AddFlat) {ex.Message}");
-            //}
+            return response;
+        }
+        private Response AddFlat() {
+            Response response = new Response(Array.Empty<byte>(), ErrorCode.Unknown);
+            try {
+                Flat flat = BinarySerializer.Deserialize<Flat>(operation.Data);
+                if (!IsDuplicate(flat)) {
+                    using (RealtyContext context = new RealtyContext()) {
+                        flat.AlbumId = AddOrUpdateAlbum(flat.Album, context);
+                        SetDates(flat);
+                        AddStreetIfNotExist(flat, context);
+                        context.Flats.Add(flat);
+                        context.SaveChanges();
+                        LogInfo($"A new flat was added by {operation.Name}");
+                        response.Code = ErrorCode.FlatAddedSuccessfuly;
+                    }
+                } else {
+                    LogWarn($"{operation.Name} tried to add an existing flat");
+                    response.Code = ErrorCode.ObjectDuplicate;
+                }
+            } catch (Exception ex) {
+                LogError(ex.Message);
+            }
             return response;
         }
 
-        
+
 
     }
 }

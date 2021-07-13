@@ -10,6 +10,7 @@ namespace RealtorServer
         {
             Console.Title = "RealtyServer";
             Console.BufferHeight = 1000;
+            new RealtyContext();
             new Server().RunAsync();
             String input = "";
             while (input != "stop")

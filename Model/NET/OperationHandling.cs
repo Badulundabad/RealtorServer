@@ -8,6 +8,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using NLog;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 
 namespace RealtorServer.Model.NET
 {
@@ -38,12 +39,14 @@ namespace RealtorServer.Model.NET
             bool hasDuplicateStreet = context.Streets.Local.Any(s => s.Name == flat.Location.Street);
             if (!hasDuplicateStreet) {
                 context.Streets.Add(new Street() { Name = flat.Location.Street });
+                LogInfo($"{operation.Name} added a new street");
             }
         }
         protected void AddStreetIfNotExist(House house, RealtyContext context) {
             bool hasDuplicateStreet = context.Streets.Local.Any(s => s.Name == house.Location.Street);
             if (!hasDuplicateStreet) {
                 context.Streets.Add(new Street() { Name = house.Location.Street });
+                LogInfo($"{operation.Name} added a new street");
             }
         }
         protected static void SetDates(Flat flat) {
@@ -54,15 +57,16 @@ namespace RealtorServer.Model.NET
             house.RegistrationDate = DateTime.Now;
             house.LastUpdateTime = house.RegistrationDate;
         }
-        protected static int AddOrUpdateAlbum(Album album, RealtyContext context) {
+        protected int AddOrUpdateAlbum(Album album, RealtyContext context) {
             Album duplicateAlbum = context.Albums.Find(album.Id);
-            Debug.WriteLine($"Пришел с id {album.Id}");
             if (duplicateAlbum != null) {
                 context.Entry(duplicateAlbum).CurrentValues.SetValues(album);
+                LogInfo($"{operation.Name} added a new album");
                 return album.Id;
             } else {
                 context.Albums.Add(album);
                 context.SaveChanges();
+                LogInfo($"Album #{album.Id} has been updated by {operation.Name}");
                 return album.Id;
             }
         }
@@ -70,23 +74,23 @@ namespace RealtorServer.Model.NET
             throw new NotImplementedException();
         }
 
-        protected void LogInfo(String text) {
+        private protected void LogInfo(String text) {
             Debug.WriteLine($"{DateTime.Now} INFO    {text}");
             Console.WriteLine($"{DateTime.Now} INFO    {text}");
             logger.Info($"    {text}");
         }
-        protected void LogWarn(String text) {
+        private protected void LogWarn(String text) {
             Debug.WriteLine($"{DateTime.Now} WARN    {text}");
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"{DateTime.Now} WARN    {text}");
-            Console.ForegroundColor = ConsoleColor.White;
+            Console.ResetColor();
             logger.Warn($"    {text}");
         }
-        protected void LogError(String text) {
-            Debug.WriteLine($"\n{DateTime.Now} ERROR    {text}\n");
+        private protected void LogError(String text) {
+            Debug.WriteLine($"{DateTime.Now} ERROR    {text}");
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"{DateTime.Now} ERROR    {text}");
-            Console.ForegroundColor = ConsoleColor.White;
+            Console.ResetColor();
             logger.Error($"    {text}");
         }
     }
