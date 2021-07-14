@@ -4,6 +4,7 @@ using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
 using RealtyModel.Service;
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
@@ -27,11 +28,14 @@ namespace RealtorServer.Model.NET
         }
 
         private Response GetStreets() {
-            Street[] streets;
+            List<string> streets = new List<string>();
             using (RealtyContext context = new RealtyContext()) {
-                streets = context.Streets.Local.ToArray();
+                foreach (Street s in context.Streets.Local) {
+                    streets.Add(s.Name);
+                }
             }
-            Response response = new Response(BinarySerializer.Serialize(streets));
+            string[] namesOfStreets= streets.OrderBy(s => s).ToArray();
+            Response response = new Response(BinarySerializer.Serialize(namesOfStreets));
             LogInfo($"Sent streets to {operation.Name}");
             return response;
         }
