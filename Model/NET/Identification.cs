@@ -18,7 +18,10 @@ namespace RealtorServer.Model.NET
             this.operation = operation;
         }
         private Response VerifyCredentials() {
-            Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
+            SymmetricEncryption encrypted = BinarySerializer.Deserialize<SymmetricEncryption>(operation.Data);
+            LogInfo("Received encrypted credentials");
+            Credential credential = encrypted.Decrypt<Credential>();
+            LogInfo("Decrypted credentials");
             bool hasMatchingCredentials = new CredentialContext().Credentials.FirstOrDefault(x => x.Name == credential.Name && x.Password == credential.Password) != null;
             if (hasMatchingCredentials) {
                 LogInfo($"{operation.Ip} has logged in as {credential.Name}");
@@ -28,30 +31,9 @@ namespace RealtorServer.Model.NET
                 return new Response(BinarySerializer.Serialize(false), ErrorCode.Credential);
             }
         }
-        private Response Register() {
-            try {
-                Credential credential = BinarySerializer.Deserialize<Credential>(operation.Data);
-                using (CredentialContext context = new CredentialContext()) {
-                    if (!context.Credentials.Any(cred => cred.Name == credential.Name)) {
-                        context.Credentials.Add(credential);
-                        context.SaveChanges();
-                        LogInfo($"{credential.Name} has been registered");
-                        return new Response(BinarySerializer.Serialize(true), ErrorCode.Successful);
-                    } else {
-                        LogWarn($"Agent {credential.Name} already exists");
-                        return new Response(BinarySerializer.Serialize(false), ErrorCode.AgentExists);
-                    }
-                }
-            } catch (Exception ex) {
-                LogError(ex.Message);
-                return new Response(BinarySerializer.Serialize(false), ErrorCode.Unknown);
-            }
-        }
         public override Response Handle() {
             if (operation.Action == Action.Login)
                 return VerifyCredentials();
-            else if (operation.Action == Action.Register)
-                return Register();
             else
                 throw new Exception();
         }

@@ -60,7 +60,8 @@
     <Reference Include="NLog, Version=4.0.0.0, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL">
       <HintPath>packages\NLog.4.7.9\lib\net45\NLog.dll</HintPath>
     </Reference>
-    <Reference Include="RealtyModel">
+    <Reference Include="RealtyModel, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
       <HintPath>..\RealtyModel\bin\Debug\RealtyModel.dll</HintPath>
     </Reference>
     <Reference Include="SQLitePCLRaw.core, Version=2.0.5.1114, Culture=neutral, PublicKeyToken=1488e028ca7ab535, processorArchitecture=MSIL">

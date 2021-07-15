@@ -31,7 +31,7 @@ namespace RealtorServer.Model.NET
                     AddStreetIfNotExist(house, context);
                     context.Houses.Add(house);
                     context.SaveChanges();
-                    LogInfo($"A new house was added by {operation.Name}");
+                    LogInfo($"{operation.Name} added a new house");
                     response.Code = ErrorCode.ObjectAddedSuccessfuly;
                 }
             } else {
@@ -44,27 +44,24 @@ namespace RealtorServer.Model.NET
             Response response = new Response(Array.Empty<byte>(), ErrorCode.Unknown);
             try {
                 Flat flat = BinarySerializer.Deserialize<Flat>(operation.Data);
-                //if (!IsDuplicate(flat)) {
+                if (!IsDuplicate(flat)) {
                     using (RealtyContext context = new RealtyContext()) {
                         flat.AlbumId = AddOrUpdateAlbum(flat.Album, context);
                         SetDates(flat);
                         AddStreetIfNotExist(flat, context);
                         context.Flats.Add(flat);
                         context.SaveChanges();
-                        LogInfo($"A new flat was added by {operation.Name}");
+                        LogInfo($"{operation.Name} added a new house");
                         response.Code = ErrorCode.ObjectAddedSuccessfuly;
                     }
-                //} else {
-                //    LogWarn($"{operation.Name} tried to add an existing flat");
-                //    response.Code = ErrorCode.ObjectDuplicate;
-                //}
+                } else {
+                    LogWarn($"{operation.Name} tried to add an existing flat");
+                    response.Code = ErrorCode.ObjectDuplicate;
+                }
             } catch (Exception ex) {
                 LogError(ex.Message);
             }
             return response;
         }
-
-
-
     }
 }

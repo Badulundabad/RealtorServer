@@ -14,7 +14,7 @@ namespace RealtorServer.Model.NET
 {
     class OperationHandling
     {
-        private Logger logger = LogManager.GetCurrentClassLogger();
+        private readonly Logger logger = LogManager.GetCurrentClassLogger();
         protected Operation operation;
         protected bool IsDuplicate(Flat flat) {
             using (RealtyContext context = new RealtyContext()) {
@@ -66,7 +66,7 @@ namespace RealtorServer.Model.NET
             } else {
                 context.Albums.Add(album);
                 context.SaveChanges();
-                LogInfo($"Album #{album.Id} has been updated by {operation.Name}");
+                LogInfo($"Album #{album.Id} has was updated by {operation.Name}");
                 return album.Id;
             }
         }
