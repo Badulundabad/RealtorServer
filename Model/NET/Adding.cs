@@ -2,6 +2,7 @@
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
+using RealtyModel.Model.Tools;
 using System;
 using System.Diagnostics;
 using System.Linq;

@@ -125,7 +125,7 @@
     <Reference Include="PresentationFramework" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Model\DataBase\CredentialContext.cs" />
+    <Compile Include="Model\DataBase\AgentContext.cs" />
     <Compile Include="Model\DataBase\RealtyContext.cs" />
     <Compile Include="Model\NET\Adding.cs" />
     <Compile Include="Model\NET\OperationHandling.cs" />
@@ -156,7 +156,7 @@
     <Content Include="NLog.config">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
-    <None Include="credentials.db">
+    <None Include="agents.db">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
     <None Include="NLog.xsd">

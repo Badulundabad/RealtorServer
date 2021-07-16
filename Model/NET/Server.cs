@@ -4,10 +4,13 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Tasks;
 using NLog;
-using RealtyModel.Service;
 using RealtyModel.Model.Operations;
 using Action = RealtyModel.Model.Operations.Action;
 using System.Runtime.CompilerServices;
+using RealtyModel.Model.Tools;
+using RealtorServer.Model.DataBase;
+using RealtyModel.Model;
+using System.Linq;
 
 namespace RealtorServer.Model.NET
 {
@@ -15,15 +18,23 @@ namespace RealtorServer.Model.NET
     {
         private TcpListener tcpListener;
         private NetworkStream network;
+        private IPAddress currentIp;
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
         public Server()
         {
-            if (Debugger.IsAttached)
-                tcpListener = new TcpListener(IPAddress.Parse("192.168.8.102"), 15000);
-            else tcpListener = new TcpListener(IPAddress.Parse("192.168.1.250"), 15000);
+            currentIp = GetLocalIPAddress();
+            tcpListener = new TcpListener(currentIp, 15000);
         }
-
+        public static IPAddress GetLocalIPAddress() {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (IPAddress ip in host.AddressList) {
+                if (ip.AddressFamily == AddressFamily.InterNetwork) {
+                    return ip;
+                }
+            }
+            throw new ArgumentException("No network adapters with an IPv4 address in the system");
+        }
         public async void RunAsync()
         {
             await Task.Run(() =>
@@ -77,11 +88,11 @@ namespace RealtorServer.Model.NET
             }
         }
         private void LogServerStart() {
-            Debug.WriteLine($"{DateTime.Now} INFO    The server started listening\n");
-            Console.WriteLine($"{DateTime.Now} INFO    The server started listening\n");
+            Debug.WriteLine($"{DateTime.Now} INFO    The server started listening on {currentIp}\n");
+            Console.WriteLine($"{DateTime.Now} INFO    The server started listening on {currentIp}\n");
             logger.Info("");
             logger.Info("");
-            logger.Info($"    The server started listening\n\n");
+            logger.Info($"    The server started listening on {currentIp}\n\n");
         }
         private void LogNewSession(string text) {
             Debug.WriteLine($"\n{DateTime.Now} INFO    {text} initiated a new session");

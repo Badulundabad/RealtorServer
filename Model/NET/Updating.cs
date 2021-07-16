@@ -2,7 +2,7 @@
 using RealtyModel.Model;
 using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
-using RealtyModel.Service;
+using RealtyModel.Model.Tools;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,22 +21,24 @@ namespace RealtorServer.Model.NET
             } else if (operation.Target == Target.House) {
                 return UpdateHouse();
             } else {
-                return UpdateCredentials();
+                return UpdateAgents();
             }
         }
-        private Response UpdateCredentials() {
+        private Response UpdateAgents() {
             Response response = new Response(Array.Empty<byte>(), ErrorCode.Unknown);
             try {
                 SymmetricEncryption encrypted = BinarySerializer.Deserialize<SymmetricEncryption>(operation.Data);
-                LogInfo($"Decrypted credentials");
-                List<Credential> modifiedCredentials = encrypted.Decrypt<List<Credential>>();
-                using (CredentialContext context = new CredentialContext()) {
-                    context.Credentials.Local.Clear();
-                    foreach (Credential c in modifiedCredentials) {
-                        context.Credentials.Local.Add(c);
+                LogInfo($"Received agents");
+                List<Agent> modifiedAgents = encrypted.Decrypt<List<Agent>>();
+                LogInfo($"Decrypted agents");
+                using (AgentContext context = new AgentContext()) {
+                    context.Agents.Local.Clear();
+                    foreach (Agent a in modifiedAgents) {
+                        a.NickName = $"{a.Surname}{a.Name[0]}{a.Patronymic[0]}";
+                        context.Agents.Local.Add(a);
                     }
                     context.SaveChanges();
-                    LogInfo($"Updated {modifiedCredentials.Count} credentials");
+                    LogInfo($"Updated {modifiedAgents.Count} agents");
                 }
                 response.Data = BinarySerializer.Serialize(true);
                 response.Code = ErrorCode.CredentialUpdatedSuccessfuly;

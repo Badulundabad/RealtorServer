@@ -3,7 +3,7 @@ using RealtyModel.Model;
 using RealtyModel.Model.Base;
 using RealtyModel.Model.Derived;
 using RealtyModel.Model.Operations;
-using RealtyModel.Service;
+using RealtyModel.Model.Tools;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -24,20 +24,20 @@ namespace RealtorServer.Model.NET
             } else if (operation.Target == Target.Album) {
                 return RequestAlbum();
             } else if (operation.Target == Target.Agent) {
-                return RequestCredentials();
+                return RequestAgents();
             } else {
                 throw new NotImplementedException();
             }
         }
-        private Response RequestCredentials() {
-            List<Credential> credentials = new List<Credential>();
-            using (CredentialContext context = new CredentialContext()) {
-                credentials.AddRange(context.Credentials.Local);
+        private Response RequestAgents() {
+            List<Agent> agents = new List<Agent>();
+            using (AgentContext context = new AgentContext()) {
+                agents.AddRange(context.Agents.Local);
             }
-            LogInfo($"Retrieved {credentials.Count} credentials");
-            Response response = new Response(new SymmetricEncryption(credentials).Encrypt<List<Credential>>(), ErrorCode.NoCode);
-            LogInfo($"Encrypted credentials");
-            LogInfo($"Sent credentials to {operation.Name}");
+            LogInfo($"Retrieved {agents.Count} agents");
+            Response response = new Response(new SymmetricEncryption(agents).Encrypt<List<Agent>>(), ErrorCode.NoCode);
+            LogInfo($"Encrypted agents");
+            LogInfo($"Sent agents to {operation.Name}");
             return response;
         }
         private Response RequestStreets() {
