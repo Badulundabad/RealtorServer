@@ -72,7 +72,7 @@ namespace RealtorServer.Model.NET
                     LogInfo($"Sent realtor objects to {operation.Name}");
                 }
             } catch (Exception ex) {
-                LogError(ex.Message);
+                LogError(ex.InnerException.Message);
                 response.Code = ErrorCode.Unknown;
             }
             return response;
@@ -90,7 +90,7 @@ namespace RealtorServer.Model.NET
                     }
                 }
             } catch (Exception ex) {
-                LogError(ex.Message);
+                LogError(ex.InnerException.Message);
                 response.Code = ErrorCode.Unknown;
             }
             return response;

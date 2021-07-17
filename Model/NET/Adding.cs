@@ -19,7 +19,7 @@ namespace RealtorServer.Model.NET
             if (operation.Target == Target.Flat) {
                 return AddFlat();
             } else {
-                return AddHouse(); ;
+                return AddHouse();
             }
         }
         private Response AddHouse() {
@@ -33,6 +33,12 @@ namespace RealtorServer.Model.NET
                     context.Houses.Add(house);
                     context.SaveChanges();
                     LogInfo($"{operation.Name} added a new house");
+                    using (AgentContext agentContext = new AgentContext()) {
+                        Agent agent = agentContext.Agents.Local.First(a => a.Id == house.AgentId);
+                        agent.ObjectCount++;
+                        agentContext.SaveChanges();
+                        LogInfo($"Increased agent's #{agent.Id} object count");
+                    }
                     response.Code = ErrorCode.ObjectAddedSuccessfuly;
                 }
             } else {
@@ -53,6 +59,12 @@ namespace RealtorServer.Model.NET
                         context.Flats.Add(flat);
                         context.SaveChanges();
                         LogInfo($"{operation.Name} added a new house");
+                        using (AgentContext agentContext = new AgentContext()) {
+                            Agent agent = agentContext.Agents.Local.First(a => a.Id == flat.AgentId);
+                            agent.ObjectCount++;
+                            agentContext.SaveChanges();
+                            LogInfo($"Increased agent's #{agent.Id} object count");
+                        }
                         response.Code = ErrorCode.ObjectAddedSuccessfuly;
                     }
                 } else {
@@ -60,7 +72,7 @@ namespace RealtorServer.Model.NET
                     response.Code = ErrorCode.ObjectDuplicate;
                 }
             } catch (Exception ex) {
-                LogError(ex.Message);
+                LogError(ex.InnerException.Message);
             }
             return response;
         }

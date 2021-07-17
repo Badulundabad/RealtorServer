@@ -65,7 +65,7 @@ namespace RealtorServer.Model.NET
                     response.Code = ErrorCode.ObjectUpdatedSuccessfuly;
                 }
             } catch (Exception ex) {
-                LogError(ex.Message);
+                LogError(ex.InnerException.Message);
                 response.Code = ErrorCode.Unknown;
             }
             LogInfo($"Sent a response");
@@ -86,7 +86,7 @@ namespace RealtorServer.Model.NET
                     LogInfo($"House #{modifiedHouse.Id} has was updated by {operation.Name}");
                 }
             } catch (Exception ex) {
-                LogError(ex.Message);
+                LogError(ex.InnerException.Message);
                 response.Code = ErrorCode.Unknown;
             }
             LogInfo($"Sent a response");

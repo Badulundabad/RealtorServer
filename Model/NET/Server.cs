@@ -59,7 +59,7 @@ namespace RealtorServer.Model.NET
                     }
                     catch (Exception ex)
                     {
-                        LogError(ex.Message);
+                        LogError(ex.InnerException.Message);
                     }
                 }
             });
