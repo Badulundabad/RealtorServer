@@ -25,6 +25,8 @@ namespace RealtorServer.Model.NET
                 return RequestAlbum();
             } else if (operation.Target == Target.Agent) {
                 return RequestAgents();
+            } else if (operation.Target == Target.Calleable) {
+                return RequestCalleable();
             } else {
                 throw new NotImplementedException();
             }
@@ -41,17 +43,18 @@ namespace RealtorServer.Model.NET
             return response;
         }
         private Response RequestStreets() {
-            List<string> streets = new List<string>();
-            using (RealtyContext context = new RealtyContext()) {
-                foreach (Street s in context.Streets.Local) {
-                    streets.Add(s.Name);
+            Response response = new Response(Array.Empty<byte>(), ErrorCode.NoCode);
+            try {
+                string[] streets;
+                using (RealtyContext context = new RealtyContext()) {
+                    streets = context.Streets.Select(s => s.Name).OrderBy(s => s).ToArray();
                 }
+                LogInfo($"Retrieved {streets.Length} streets");
+                response.Data = BinarySerializer.Serialize(streets);
+                LogInfo($"Sent streets to {operation.Name}");
+            } catch (Exception ex) {
+                LogError(ex.InnerException.Message);
             }
-            LogInfo($"Retrieved {streets.Count} streets");
-            string[] namesOfStreets = streets.OrderBy(s => s).ToArray();
-            LogInfo("Sorted streets");
-            Response response = new Response(BinarySerializer.Serialize(namesOfStreets));
-            LogInfo($"Sent streets to {operation.Name}");
             return response;
         }
         private Response RequestRealtorObjects() {
@@ -70,6 +73,24 @@ namespace RealtorServer.Model.NET
                     Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats.ToArray(), houses.ToArray());
                     response.Data = BinarySerializer.Serialize(objects);
                     LogInfo($"Sent realtor objects to {operation.Name}");
+                }
+            } catch (Exception ex) {
+                LogError(ex.InnerException.Message);
+                response.Code = ErrorCode.Unknown;
+            }
+            return response;
+        }
+        private Response RequestCalleable() {
+            Response response = new Response(Array.Empty<Byte>(), ErrorCode.NoCode);
+            try {
+                using (RealtyContext context = new RealtyContext()) {
+                DateTime halfYearAgo = DateTime.Now.AddDays(-180);
+                    List<Flat> flats = new List<Flat>();
+                    flats.AddRange(context.Flats.Where(f => f.RegistrationDate < halfYearAgo));
+                    List<House> houses = new List<House>();
+                    houses.AddRange(context.Houses.Where(h => h.RegistrationDate < halfYearAgo));
+                    Tuple<Flat[], House[]> objects = new Tuple<Flat[], House[]>(flats.ToArray(), houses.ToArray());
+                    response.Data = BinarySerializer.Serialize(objects);
                 }
             } catch (Exception ex) {
                 LogError(ex.InnerException.Message);
